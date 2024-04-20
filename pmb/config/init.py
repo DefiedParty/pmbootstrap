@@ -286,11 +286,17 @@ def ask_for_provider_select(args, apkbuild, providers_cfg):
             if pkgname == last_selected:
                 last_selected = short
 
-            for pkg in providers:
-                if apkbuild["_pmb_default"] == pkgname:
-                    provider_priority += 100
+            priority = pkg.get('provider_priority', 0)
 
-            if not has_default and pkg.get('provider_priority', 0) != 0:
+            if len(apkbuild["_pmb_default"]) != 0:
+                for package in providers:
+                    for default in apkbuild["_pmb_default"]:
+                        if default == pkgname:
+                            priority += 100
+                        else:
+                            priority = 0
+
+            if not has_default and priority != 0:
                 # Display as default provider
                 styles = pmb.config.styles
                 logging.info(f"* {short}: {pkg['pkgdesc']} "
