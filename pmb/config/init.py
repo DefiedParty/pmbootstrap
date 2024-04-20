@@ -307,6 +307,12 @@ def ask_for_provider_select(args, apkbuild, providers_cfg):
                 logging.info(f"* {short}: {pkg['pkgdesc']}")
 
         while True:
+            if len(apkbuild["_pmb_default"]) != 0:
+                for package in apkbuild["_pmb_default"]:
+                    packagebase = package[:package.rfind("-")]
+                    if select == packagebase:
+                        last_selected = 'default'
+
             ret = pmb.helpers.cli.ask("Provider", None, last_selected, True,
                                       complete=providers_short.keys())
 
