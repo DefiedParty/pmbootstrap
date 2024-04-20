@@ -288,6 +288,7 @@ def ask_for_provider_select(args, apkbuild, providers_cfg):
 
             priority = pkg.get('provider_priority', 0)
 
+            # Override priority if package is present in _pmb_default
             if len(apkbuild["_pmb_default"]) != 0:
                 for package in providers:
                     for default in apkbuild["_pmb_default"]:
@@ -307,6 +308,8 @@ def ask_for_provider_select(args, apkbuild, providers_cfg):
                 logging.info(f"* {short}: {pkg['pkgdesc']}")
 
         while True:
+            # Make sure that pmbootstrap allows selecting default while
+            # using _pmb_default
             if len(apkbuild["_pmb_default"]) != 0:
                 for package in apkbuild["_pmb_default"]:
                     packagebase = package[:package.rfind("-")]
@@ -316,6 +319,7 @@ def ask_for_provider_select(args, apkbuild, providers_cfg):
             ret = pmb.helpers.cli.ask("Provider", None, last_selected, True,
                                       complete=providers_short.keys())
 
+            # Select the package in _pmb_default if it is found
             if has_default and ret == 'default':
                 if len(apkbuild["_pmb_default"]) != 0:
                     for package in apkbuild["_pmb_default"]:
