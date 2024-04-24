@@ -267,6 +267,7 @@ def ask_for_provider_select(args, apkbuild, providers_cfg):
     """
     for select in apkbuild["_pmb_select"]:
         providers = pmb.helpers.pmaports.find_providers(args, select)
+        default_provider = pmb.helpers.pmaports.get_default_provider(args, apkbuild)
         logging.info(f"Available providers for {select} ({len(providers)}):")
 
         has_default = False
@@ -286,19 +287,7 @@ def ask_for_provider_select(args, apkbuild, providers_cfg):
             if pkgname == last_selected:
                 last_selected = short
 
-            priority = pkg.get('provider_priority', 0)
-
-            # Override priority if package is present in _pmb_default
-            if len(apkbuild["_pmb_default"]) != 0:
-                for package in providers:
-                    for default in apkbuild["_pmb_default"]:
-                        if default == pkgname:
-                            priority += 100
-                            break
-                        else:
-                            priority = 0
-
-            if not has_default and priority != 0:
+            if default_provider == short:
                 # Display as default provider
                 styles = pmb.config.styles
                 logging.info(f"* {short}: {pkg['pkgdesc']} "
@@ -319,17 +308,10 @@ def ask_for_provider_select(args, apkbuild, providers_cfg):
             ret = pmb.helpers.cli.ask("Provider", None, last_selected, True,
                                       complete=providers_short.keys())
 
-            # Select the package in _pmb_default if it is found
             if has_default and ret == 'default':
-                if len(apkbuild["_pmb_default"]) != 0:
-                    for package in apkbuild["_pmb_default"]:
-                        packagebase = package[:package.rfind("-")]
-                        if select == packagebase:
-                            providers_cfg[select] = providers_short[package]
-                    break
                 # Selecting default means to not select any provider explicitly
                 # In other words, apk chooses it automatically based on
-                # "provider_priority"
+                # "provider_priority" or "_pmb_default"
                 if select in providers_cfg:
                     del providers_cfg[select]
                 break
