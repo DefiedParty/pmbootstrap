@@ -247,12 +247,15 @@ def find_providers(args, provide):
     return sorted(providers.items(), reverse=True,
                   key=lambda p: p[1].get('provider_priority', 0))
 
-def get_default_provider(args, apkbuild):
+def get_default_provider(args, apkbuild, package=""):
     """ Get the default provider for _pmb_select.
 
         apkbuild: the APKBUILD with the _pmb_select
+        package: optional param that specifies a package to get the default
+                provider for
     """
-    for select in apkbuild["_pmb_select"]:
+    if package != "":
+        select = package
         providers = find_providers(args, select)
         priority = 0
         package_loop = 0
@@ -268,16 +271,39 @@ def get_default_provider(args, apkbuild):
                 package_loop += 1
 
                 if package_loop == len(apkbuild["_pmb_select"]):
-                    if default_provider.startswith(f'{select}-'):
-                        default_provider = default_provider[len(f"{select}-"):]
                     return default_provider
         else:
             for package in apkbuild["_pmb_default"]:
                 for pkgname, pkg in providers:
                     if package == pkgname:
-                        if package.startswith(f'{select}-'):
-                            package = package[len(f"{select}-"):]
                         return package
+    else:
+        for select in apkbuild["_pmb_select"]:
+            providers = find_providers(args, select)
+            priority = 0
+            package_loop = 0
+
+            if len(apkbuild["_pmb_default"]) == 0:
+                for pkgname, pkg in providers:
+                    package_priority = pkg.get('provider_priority', 0)
+
+                    if package_priority > priority:
+                        priority = package_priority
+                        default_provider = pkgname
+
+                    package_loop += 1
+
+                    if package_loop == len(apkbuild["_pmb_select"]):
+                        if default_provider.startswith(f'{select}-'):
+                            default_provider = default_provider[len(f"{select}-"):]
+                        return default_provider
+            else:
+                for package in apkbuild["_pmb_default"]:
+                    for pkgname, pkg in providers:
+                        if package == pkgname:
+                            if package.startswith(f'{select}-'):
+                                package = package[len(f"{select}-"):]
+                            return package
 
 def get_repo(args, pkgname, must_exist=True):
     """ Get the repository folder of an aport.
