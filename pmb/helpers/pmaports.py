@@ -274,6 +274,7 @@ def get_default_provider(args, apkbuild, package=""):
                     return default_provider
         else:
             for package in apkbuild["_pmb_default"]:
+                apkbuild = pmb.helpers.pmaports.get(args, package, subpackages=True, must_exist=True)
                 for pkgname, pkg in providers:
                     if package == pkgname:
                         return package
@@ -299,6 +300,7 @@ def get_default_provider(args, apkbuild, package=""):
                         return default_provider
             else:
                 for package in apkbuild["_pmb_default"]:
+                    apkbuild = pmb.helpers.pmaports.get(args, package, subpackages=True, must_exist=True)
                     for pkgname, pkg in providers:
                         if package == pkgname:
                             if package.startswith(f'{select}-'):
