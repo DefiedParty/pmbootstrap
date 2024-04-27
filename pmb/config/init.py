@@ -267,7 +267,7 @@ def ask_for_provider_select(args, apkbuild, providers_cfg):
     """
     for select in apkbuild["_pmb_select"]:
         providers = pmb.helpers.pmaports.find_providers(args, select)
-        default_provider = pmb.helpers.pmaports.get_default_provider(args, apkbuild)
+        default_provider = pmb.helpers.pmaports.get_default_provider(args, apkbuild, select, full_name=True)
         logging.info(f"Available providers for {select} ({len(providers)}):")
 
         has_default = False
