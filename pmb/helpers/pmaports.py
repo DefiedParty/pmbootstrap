@@ -251,33 +251,40 @@ def get_default_provider(args, apkbuild, package_name=""):
     """ Get the default provider for _pmb_select.
 
         apkbuild: the APKBUILD with the _pmb_select
-        package_name: optional param that specifies a package to get the default
-                provider for
+        package_name: optional param that specifies a package to get
+                    the default provider for
     """
     for select in apkbuild["_pmb_select"]:
+        # Choose specified package if not empty
         if package_name != "":
             select = package_name
         providers = find_providers(args, select)
         priority = 0
         package_loop = 0
 
+        # Select by apk priority unless _pmb_default exists
         if len(apkbuild["_pmb_default"]) == 0:
             for pkgname, pkg in providers:
                 package_priority = pkg.get('provider_priority', 0)
 
+                # Loops multiple times and select the highest priority
                 if package_priority > priority:
                     priority = package_priority
                     default_provider = pkgname
 
                 package_loop += 1
 
+                # Break the loop once we have checked the priority
+                # of every provider
                 if package_loop == len(apkbuild["_pmb_select"]):
                     if default_provider.startswith(f'{select}-') and package_name == "":
                         default_provider = default_provider[len(f"{select}-"):]
                     return default_provider
+            # Don't analyze more than the specified package if passed
             if package_name != "":
                 break
         else:
+            # Priority doesn't matter if found in _pmb_default
             for package in apkbuild["_pmb_default"]:
                 apkbuild = pmb.helpers.pmaports.get(args, package, subpackages=True, must_exist=True)
                 for pkgname, pkg in providers:
