@@ -592,11 +592,17 @@ def ask_for_hostname(args, device):
 
 
 def ask_for_ssh_keys(args):
-    if not len(glob.glob(os.path.expanduser("~/.ssh/id_*.pub"))):
+    keys = glob.glob(os.path.expanduser(args.ssh_key_glob))
+    if not keys:
+        logging.info("NOTE: No SSH public keys found to copy to the device.")
+        logging.info("See https://postmarketos.org/ssh-key-glob for more information.")
         return False
+    logging.info(f"SSH public keys found ({len(keys)}):")
+    for key in keys:
+        logging.info(f"* {key}")
+    logging.info("See https://postmarketos.org/ssh-key-glob for more information.")
     return pmb.helpers.cli.confirm(args,
-                                   "Would you like to copy your SSH public"
-                                   " keys to the device?",
+                                   "Would you like to copy these public keys to the device?",
                                    default=args.ssh_keys)
 
 

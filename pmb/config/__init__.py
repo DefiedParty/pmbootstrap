@@ -127,7 +127,7 @@ defaults = {
     #       comma-separated string, not a python list or any other type!
     "mirrors_postmarketos": "http://mirror.postmarketos.org/postmarketos/",
     "qemu_redir_stdio": False,
-    "ssh_key_glob": "~/.ssh/id_*.pub",
+    "ssh_key_glob": "~/.ssh/*.pub",
     "ssh_keys": False,
     "sudo_timer": False,
     "systemd": "default",
