@@ -41,7 +41,7 @@ _gccrel=$pkgver-r$pkgrel
 depends="binutils-armhf mpc1"
 makedepends_build="gcc g++ bison flex texinfo gawk zip gmp-dev mpfr-dev mpc1-dev zlib-dev"
 makedepends_host="linux-headers gmp-dev mpfr-dev mpc1-dev isl-dev zlib-dev musl-dev-armhf binutils-armhf"
-subpackages="g++-armhf:gpp libstdc++-dev-armhf:libcxx_dev"
+subpackages="g++-armhf:gpp libstdc++-armhf:libcxx libstdc++-dev-armhf:libcxx_dev"
 [ "$CHOST" = "$CTARGET" ] && subpackages="gcc-doc$_target"
 replaces="libstdc++ binutils"
 

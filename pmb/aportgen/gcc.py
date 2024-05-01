@@ -48,6 +48,7 @@ def generate(args, pkgname):
     # Latest gcc only, not gcc4 and gcc6
     if prefix == "gcc":
         fields["subpackages"] = f"g++-{arch}:gpp" \
+                                f" libstdc++-{arch}:libcxx" \
                                 f" libstdc++-dev-{arch}:libcxx_dev"
 
     below_header = "CTARGET_ARCH=" + arch + """
