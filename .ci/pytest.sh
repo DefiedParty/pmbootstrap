@@ -60,6 +60,13 @@ if [ -n "$(git -C "$pmaports" status --porcelain)" ]; then
 	exit 1
 fi
 
+# run pmb build first, it installs deps, copies in hello-world src, etc
+./pmbootstrap.py build --arch armhf --force hello-world || true
+# echo "***** build manually without abuild..."
+./pmbootstrap.py chroot -b armhf sh -- -c 'COLLECT_LTO_WRAPPER=/usr/libexec/gcc/armv6-alpine-linux-musleabihf/13.2.1/lto-wrapper CARCH=armhf PATH=/native/usr/lib/crossdirect/armhf:/usr/libexec/gcc/armv6-alpine-linux-musleabihf/13.2.1:/usr/lib/ccache/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin gcc --verbose /home/pmos/build/main.c'
+
+exit 1
+
 echo "Running pytest..."
 echo "NOTE: use 'pmbootstrap log' to see the detailed log if running locally."
 pytest \
@@ -69,4 +76,4 @@ pytest \
 	$cov_arg \
 	test \
 		-m "not skip_ci" \
-		"$@"
+		test/test_build_package.py
