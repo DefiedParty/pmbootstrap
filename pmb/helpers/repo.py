@@ -7,13 +7,18 @@ Functions that work with binary package repos. See also:
 """
 import os
 import hashlib
-import logging
+from pmb.helpers import logging
+from pathlib import Path
+from typing import List
+
 import pmb.config.pmaports
+from pmb.core.types import PmbArgs
 import pmb.helpers.http
 import pmb.helpers.run
+import pmb.helpers.other
 
 
-def hash(url, length=8):
+def apkindex_hash(url: str, length: int=8) -> Path:
     """
     Generate the hash that APK adds to the APKINDEX and apk packages
     in its apk cache folder. It is the "12345678" part in this example:
@@ -37,10 +42,10 @@ def hash(url, length=8):
         ret += xd[(binary[i] >> 4) & 0xf]
         ret += xd[binary[i] & 0xf]
 
-    return ret
+    return Path(f"APKINDEX.{ret}.tar.gz")
 
 
-def urls(args, user_repository=True, postmarketos_mirror=True, alpine=True):
+def urls(args: PmbArgs, user_repository=True, postmarketos_mirror=True, alpine=True):
     """
     Get a list of repository URLs, as they are in /etc/apk/repositories.
     :param user_repository: add /mnt/pmbootstrap/packages
@@ -49,7 +54,7 @@ def urls(args, user_repository=True, postmarketos_mirror=True, alpine=True):
     :returns: list of mirror strings, like ["/mnt/pmbootstrap/packages",
                                             "http://...", ...]
     """
-    ret = []
+    ret: List[str] = []
 
     # Get mirrordirs from channels.cfg (postmarketOS mirrordir is the same as
     # the pmaports branch of the channel, no need to make it more complicated)
@@ -81,11 +86,12 @@ def urls(args, user_repository=True, postmarketos_mirror=True, alpine=True):
             directories.append("testing")
         for dir in directories:
             ret.append(f"{args.mirror_alpine}{mirrordir_alpine}/{dir}")
+
     return ret
 
 
-def apkindex_files(args, arch=None, user_repository=True, pmos=True,
-                   alpine=True):
+def apkindex_files(args: PmbArgs, arch=None, user_repository=True, pmos=True,
+                   alpine=True) -> List[Path]:
     """
     Get a list of outside paths to all resolved APKINDEX.tar.gz files for a
     specific arch.
@@ -102,17 +108,16 @@ def apkindex_files(args, arch=None, user_repository=True, pmos=True,
     # Local user repository (for packages compiled with pmbootstrap)
     if user_repository:
         channel = pmb.config.pmaports.read_config(args)["channel"]
-        ret = [f"{args.work}/packages/{channel}/{arch}/APKINDEX.tar.gz"]
+        ret = [pmb.config.work / "packages" / channel / arch / "APKINDEX.tar.gz"]
 
     # Resolve the APKINDEX.$HASH.tar.gz files
     for url in urls(args, False, pmos, alpine):
-        ret.append(args.work + "/cache_apk_" + arch + "/APKINDEX." +
-                   hash(url) + ".tar.gz")
+        ret.append(pmb.config.work / f"cache_apk_{arch}" / apkindex_hash(url))
 
     return ret
 
 
-def update(args, arch=None, force=False, existing_only=False):
+def update(args: PmbArgs, arch=None, force=False, existing_only=False):
     """
     Download the APKINDEX files for all URLs depending on the architectures.
 
@@ -146,8 +151,8 @@ def update(args, arch=None, force=False, existing_only=False):
         for arch in architectures:
             # APKINDEX file name from the URL
             url_full = url + "/" + arch + "/APKINDEX.tar.gz"
-            cache_apk_outside = args.work + "/cache_apk_" + arch
-            apkindex = cache_apk_outside + "/APKINDEX." + hash(url) + ".tar.gz"
+            cache_apk_outside = pmb.config.work / f"cache_apk_{arch}"
+            apkindex = cache_apk_outside / f"APKINDEX.{apkindex_hash(url)}.tar.gz"
 
             # Find update reason, possibly skip non-existing or known 404 files
             reason = None
@@ -195,7 +200,7 @@ def update(args, arch=None, force=False, existing_only=False):
     return True
 
 
-def alpine_apkindex_path(args, repo="main", arch=None):
+def alpine_apkindex_path(args: PmbArgs, repo="main", arch=None):
     """
     Get the path to a specific Alpine APKINDEX file on disk and download it if
     necessary.
@@ -215,5 +220,5 @@ def alpine_apkindex_path(args, repo="main", arch=None):
     # Find it on disk
     channel_cfg = pmb.config.pmaports.read_config_channel(args)
     repo_link = f"{args.mirror_alpine}{channel_cfg['mirrordir_alpine']}/{repo}"
-    cache_folder = args.work + "/cache_apk_" + arch
-    return cache_folder + "/APKINDEX." + hash(repo_link) + ".tar.gz"
+    cache_folder = pmb.config.work / (f"cache_apk_{arch}")
+    return cache_folder / apkindex_hash(repo_link)

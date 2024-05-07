@@ -1,32 +1,39 @@
 # Copyright 2023 Oliver Smith
 # SPDX-License-Identifier: GPL-3.0-or-later
-import logging
+from pathlib import Path
+from typing import Optional
+from pmb.helpers import logging
 import os
 import time
 import pmb.chroot
 import pmb.config
+from pmb.core.types import PmbArgs
 import pmb.install.losetup
+from pmb.core import Chroot
 
 
-def partitions_mount(args, layout, disk):
+# FIXME (#2324): this function drops disk to a string because it's easier
+# to manipulate, this is probably bad.
+def partitions_mount(args: PmbArgs, layout, disk: Optional[Path]):
     """
     Mount blockdevices of partitions inside native chroot
     :param layout: partition layout from get_partition_layout()
     :param disk: path to disk block device (e.g. /dev/mmcblk0) or None
     """
-    prefix = disk
     if not disk:
-        img_path = "/home/pmos/rootfs/" + args.device + ".img"
-        prefix = pmb.install.losetup.device_by_back_file(args, img_path)
+        img_path = Path("/home/pmos/rootfs") / f"{args.device}.img"
+        disk = pmb.install.losetup.device_by_back_file(args, img_path)
+
+    logging.info(f"Mounting partitions of {disk} inside the chroot")
 
     tries = 20
 
     # Devices ending with a number have a "p" before the partition number,
     # /dev/sda1 has no "p", but /dev/mmcblk0p1 has. See add_partition() in
     # block/partitions/core.c of linux.git.
-    partition_prefix = prefix
-    if str.isdigit(prefix[-1:]):
-        partition_prefix = f"{prefix}p"
+    partition_prefix = str(disk)
+    if str.isdigit(disk.name[-1:]):
+        partition_prefix = f"{disk}p"
 
     found = False
     for i in range(tries):
@@ -38,7 +45,7 @@ def partitions_mount(args, layout, disk):
         time.sleep(0.1)
 
     if not found:
-        raise RuntimeError(f"Unable to find the first partition of {prefix}, "
+        raise RuntimeError(f"Unable to find the first partition of {disk}, "
                            f"expected it to be at {partition_prefix}1!")
 
     partitions = [layout["boot"], layout["root"]]
@@ -47,12 +54,12 @@ def partitions_mount(args, layout, disk):
         partitions += [layout["kernel"]]
 
     for i in partitions:
-        source = f"{partition_prefix}{i}"
-        target = args.work + "/chroot_native/dev/installp" + str(i)
+        source = Path(f"{partition_prefix}{i}")
+        target = Chroot.native() / "dev" / f"installp{i}"
         pmb.helpers.mount.bind_file(args, source, target)
 
 
-def partition(args, layout, size_boot, size_reserve):
+def partition(args: PmbArgs, layout, size_boot, size_reserve):
     """
     Partition /dev/install and create /dev/install{p1,p2,p3}:
     * /dev/installp1: boot
@@ -111,7 +118,7 @@ def partition(args, layout, size_boot, size_reserve):
                         command, check=False)
 
 
-def partition_cgpt(args, layout, size_boot, size_reserve):
+def partition_cgpt(args: PmbArgs, layout, size_boot, size_reserve):
     """
     This function does similar functionality to partition(), but this
     one is for ChromeOS devices which use special GPT.

@@ -1,25 +1,28 @@
 # Copyright 2023 Oliver Smith
 # SPDX-License-Identifier: GPL-3.0-or-later
-import logging
+from typing import Dict, List, Sequence, Set
+from pmb.helpers import logging
 import pmb.chroot
 import pmb.chroot.apk
+from pmb.core.types import PmbArgs
 import pmb.helpers.pmaports
 import pmb.parse.apkindex
 import pmb.parse.arch
+from pmb.core import Chroot
 
 
-def package_from_aports(args, pkgname_depend):
+def package_from_aports(args: PmbArgs, pkgname_depend):
     """
     :returns: None when there is no aport, or a dict with the keys pkgname,
               depends, version. The version is the combined pkgver and pkgrel.
     """
     # Get the aport
-    aport = pmb.helpers.pmaports.find(args, pkgname_depend, False)
+    aport = pmb.helpers.pmaports.find_optional(args, pkgname_depend)
     if not aport:
         return None
 
     # Parse its version
-    apkbuild = pmb.parse.apkbuild(f"{aport}/APKBUILD")
+    apkbuild = pmb.parse.apkbuild(aport / "APKBUILD")
     pkgname = apkbuild["pkgname"]
     version = apkbuild["pkgver"] + "-r" + apkbuild["pkgrel"]
 
@@ -31,7 +34,7 @@ def package_from_aports(args, pkgname_depend):
             "version": version}
 
 
-def package_provider(args, pkgname, pkgnames_install, suffix="native"):
+def package_provider(args: PmbArgs, pkgname, pkgnames_install, suffix: Chroot=Chroot.native()):
     """
     :param pkgnames_install: packages to be installed
     :returns: a block from the apkindex: {"pkgname": "...", ...}
@@ -89,8 +92,8 @@ def package_provider(args, pkgname, pkgnames_install, suffix="native"):
     return pmb.parse.apkindex.provider_shortest(providers, pkgname)
 
 
-def package_from_index(args, pkgname_depend, pkgnames_install, package_aport,
-                       suffix="native"):
+def package_from_index(args: PmbArgs, pkgname_depend, pkgnames_install, package_aport,
+                       suffix: Chroot=Chroot.native()):
     """
     :returns: None when there is no aport and no binary package, or a dict with
               the keys pkgname, depends, version from either the aport or the
@@ -115,7 +118,7 @@ def package_from_index(args, pkgname_depend, pkgnames_install, package_aport,
     return provider
 
 
-def recurse(args, pkgnames, suffix="native"):
+def recurse(args: PmbArgs, pkgnames, suffix: Chroot=Chroot.native()) -> Sequence[str]:
     """
     Find all dependencies of the given pkgnames.
 
@@ -131,8 +134,8 @@ def recurse(args, pkgnames, suffix="native"):
 
     # Iterate over todo-list until is is empty
     todo = list(pkgnames)
-    required_by = {}
-    ret = []
+    required_by: Dict[str, Set[str]] = {}
+    ret: List[str] = []
     while len(todo):
         # Skip already passed entries
         pkgname_depend = todo.pop(0)

@@ -1,6 +1,8 @@
 # Copyright 2023 Oliver Smith
 # SPDX-License-Identifier: GPL-3.0-or-later
 """ Test pmb.helpers.run_core """
+from typing import Sequence
+from pmb.core.types import PmbArgs
 import pytest
 import re
 import subprocess
@@ -16,7 +18,7 @@ def args(request):
     import pmb.parse
     sys.argv = ["pmbootstrap.py", "chroot"]
     args = pmb.parse.arguments()
-    args.log = args.work + "/log_testsuite.txt"
+    args.log = pmb.config.work / "log_testsuite.txt"
     pmb.helpers.logging.init(args)
     request.addfinalizer(pmb.helpers.logging.logfd.close)
     return args
@@ -44,7 +46,7 @@ def test_sanity_checks():
     assert str(e.value).startswith("Can't use output_return with")
 
 
-def test_background(args):
+def test_background(args: PmbArgs):
     # Sleep in background
     process = pmb.helpers.run_core.background(["sleep", "1"], "/")
 
@@ -52,7 +54,7 @@ def test_background(args):
     assert process.poll() is None
 
 
-def test_pipe(args):
+def test_pipe(args: PmbArgs):
     # Sleep in background
     process = pmb.helpers.run_core.pipe(["sleep", "1"], "/")
 
@@ -66,9 +68,9 @@ def test_pipe(args):
     assert process.communicate()[0].decode('utf-8') == "hello"
 
 
-def test_foreground_pipe(args):
+def test_foreground_pipe(args: PmbArgs):
     func = pmb.helpers.run_core.foreground_pipe
-    cmd = ["echo", "test"]
+    cmd: Sequence[str] = ["echo", "test"]
 
     # Normal run
     assert func(args, cmd) == (0, "")
@@ -127,7 +129,7 @@ def test_foreground_tui():
     assert func(["echo", "test"]) == 0
 
 
-def test_core(args, monkeypatch):
+def test_core(args: PmbArgs, monkeypatch):
     # Background
     func = pmb.helpers.run_core.core
     msg = "test"
@@ -159,7 +161,7 @@ def test_core(args, monkeypatch):
 
 
 @pytest.mark.skip_ci
-def test_sudo_timer(args):
+def test_sudo_timer(args: PmbArgs):
     pmb.helpers.run.root(args, ["whoami"])
 
     time.sleep(300)

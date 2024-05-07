@@ -1,5 +1,6 @@
 # Copyright 2023 Oliver Smith
 # SPDX-License-Identifier: GPL-3.0-or-later
+from pmb.core.types import PmbArgs
 import pytest
 import sys
 
@@ -12,13 +13,13 @@ def args(request):
     import pmb.parse
     sys.argv = ["pmbootstrap", "init"]
     args = pmb.parse.arguments()
-    args.log = args.work + "/log_testsuite.txt"
+    args.log = pmb.config.work / "log_testsuite.txt"
     pmb.helpers.logging.init(args)
     request.addfinalizer(pmb.helpers.logging.logfd.close)
     return args
 
 
-def test_filter_missing_packages_invalid(args):
+def test_filter_missing_packages_invalid(args: PmbArgs):
     """ Test ...repo_missing.filter_missing_packages(): invalid package """
     func = pmb.helpers.repo_missing.filter_missing_packages
     with pytest.raises(RuntimeError) as e:
@@ -26,13 +27,13 @@ def test_filter_missing_packages_invalid(args):
     assert str(e.value).startswith("Could not find aport")
 
 
-def test_filter_missing_packages_binary_exists(args):
+def test_filter_missing_packages_binary_exists(args: PmbArgs):
     """ Test ...repo_missing.filter_missing_packages(): binary exists """
     func = pmb.helpers.repo_missing.filter_missing_packages
     assert func(args, "armhf", ["busybox"]) == []
 
 
-def test_filter_missing_packages_pmaports(args, monkeypatch):
+def test_filter_missing_packages_pmaports(args: PmbArgs, monkeypatch):
     """ Test ...repo_missing.filter_missing_packages(): pmaports """
     build_is_necessary = None
     func = pmb.helpers.repo_missing.filter_missing_packages
@@ -48,13 +49,13 @@ def test_filter_missing_packages_pmaports(args, monkeypatch):
     assert func(args, "x86_64", ["busybox", "hello-world"]) == []
 
 
-def test_filter_aport_packages(args):
+def test_filter_aport_packages(args: PmbArgs):
     """ Test ...repo_missing.filter_aport_packages() """
     func = pmb.helpers.repo_missing.filter_aport_packages
     assert func(args, "armhf", ["busybox", "hello-world"]) == ["hello-world"]
 
 
-def test_filter_arch_packages(args, monkeypatch):
+def test_filter_arch_packages(args: PmbArgs, monkeypatch):
     """ Test ...repo_missing.filter_arch_packages() """
     func = pmb.helpers.repo_missing.filter_arch_packages
     check_arch = None
@@ -70,7 +71,7 @@ def test_filter_arch_packages(args, monkeypatch):
     assert func(args, "armhf", []) == []
 
 
-def test_get_relevant_packages(args, monkeypatch):
+def test_get_relevant_packages(args: PmbArgs, monkeypatch):
     """ Test ...repo_missing.get_relevant_packages() """
 
     # Set up fake return values
@@ -118,7 +119,7 @@ def test_get_relevant_packages(args, monkeypatch):
     assert func(args, "armhf", "a", True) == ["a", "b"]
 
 
-def test_generate_output_format(args, monkeypatch):
+def test_generate_output_format(args: PmbArgs, monkeypatch):
     """ Test ...repo_missing.generate_output_format() """
 
     def stub(args, pkgname, arch, replace_subpkgnames=False):

@@ -3,12 +3,13 @@
 """ Common code for git tests """
 import os
 
+from pmb.core.types import PmbArgs
 import pmb.helpers.git
 import pmb.helpers.run
 import shutil
 
 
-def prepare_tmpdir(args, monkeypatch, tmpdir):
+def prepare_tmpdir(args: PmbArgs, monkeypatch, tmpdir):
     """ Prepare git repositories in tmpdir, and override related functions.
 
         Git repositories:
@@ -61,5 +62,5 @@ def prepare_tmpdir(args, monkeypatch, tmpdir):
 
     return path_local, run_git
 
-def copy_dotgit(args, tmpdir):
-    shutil.copytree(args.aports + "/.git", tmpdir + "/.git", ignore_dangling_symlinks=True)
+def copy_dotgit(args: PmbArgs, tmpdir):
+    shutil.copytree(args.aports / ".git", tmpdir + "/.git", ignore_dangling_symlinks=True)

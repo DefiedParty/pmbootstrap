@@ -1,6 +1,7 @@
 # Copyright 2023 Oliver Smith
 # SPDX-License-Identifier: GPL-3.0-or-later
 import os
+from pmb.core.types import PmbArgs
 import pytest
 import sys
 
@@ -13,13 +14,13 @@ def args(request):
     import pmb.parse
     sys.argv = ["pmbootstrap", "init"]
     args = pmb.parse.arguments()
-    args.log = args.work + "/log_testsuite.txt"
+    args.log = pmb.config.work / "log_testsuite.txt"
     pmb.helpers.logging.init(args)
     request.addfinalizer(pmb.helpers.logging.logfd.close)
     return args
 
 
-def test_guess_main(args, tmpdir):
+def test_guess_main(args: PmbArgs, tmpdir):
     # Fake pmaports folder
     tmpdir = str(tmpdir)
     args.aports = tmpdir
@@ -35,7 +36,7 @@ def test_guess_main(args, tmpdir):
     assert func(args, "qemuPackageWithoutDashes") is None
 
 
-def test_guess_main_dev(args, tmpdir):
+def test_guess_main_dev(args: PmbArgs, tmpdir):
     # Fake pmaports folder
     tmpdir = str(tmpdir)
     args.aports = tmpdir

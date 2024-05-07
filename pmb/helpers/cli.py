@@ -1,13 +1,14 @@
 # Copyright 2023 Oliver Smith
 # SPDX-License-Identifier: GPL-3.0-or-later
 import datetime
-import logging
+from pmb.helpers import logging
 import os
 import re
 import readline
 import sys
 
 import pmb.config
+from pmb.core.types import PmbArgs
 
 
 class ReadlineTabCompleter:
@@ -98,7 +99,7 @@ def ask(question="Continue?", choices=["y", "n"], default="n",
                       validation_regex + "). Please try again.")
 
 
-def confirm(args, question="Continue?", default=False, no_assumptions=False):
+def confirm(args: PmbArgs, question="Continue?", default=False, no_assumptions=False):
     """
     Convenience wrapper around ask for simple yes-no questions with validation.
 
@@ -114,7 +115,7 @@ def confirm(args, question="Continue?", default=False, no_assumptions=False):
     return answer == "y"
 
 
-def progress_print(args, progress):
+def progress_print(args: PmbArgs, progress):
     """
     Print a snapshot of a progress bar to STDOUT. Call progress_flush to end
     printing progress and clear the line. No output is printed in
@@ -137,7 +138,7 @@ def progress_print(args, progress):
         sys.stdout.write("\u001b8\u001b[0K")
 
 
-def progress_flush(args):
+def progress_flush(args: PmbArgs):
     """
     Finish printing a progress bar. This will erase the line. Does nothing in
     non-interactive mode.

@@ -2,11 +2,12 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 import os
 import glob
+from pmb.core.types import PmbArgs
 import pmb.helpers.pmaports
 import pmb.parse
 
 
-def list(args, arch):
+def list(args: PmbArgs, arch):
     """
     Get all UIs, for which aports are available with their description.
 
@@ -16,15 +17,15 @@ def list(args, arch):
     ret = [("none", "Bare minimum OS image for testing and manual"
                     " customization. The \"console\" UI should be selected if"
                     " a graphical UI is not desired.")]
-    for path in sorted(glob.glob(args.aports + "/main/postmarketos-ui-*")):
-        apkbuild = pmb.parse.apkbuild(f"{path}/APKBUILD")
+    for path in sorted(args.aports.glob("main/postmarketos-ui-*")):
+        apkbuild = pmb.parse.apkbuild(path)
         ui = os.path.basename(path).split("-", 2)[2]
         if pmb.helpers.package.check_arch(args, apkbuild["pkgname"], arch):
             ret.append((ui, apkbuild["pkgdesc"]))
     return ret
 
 
-def check_option(args, ui, option):
+def check_option(args: PmbArgs, ui, option):
     """
     Check if an option, such as pmb:systemd, is inside an UI's APKBUILD.
     """

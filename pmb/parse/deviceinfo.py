@@ -1,9 +1,11 @@
 # Copyright 2023 Oliver Smith
 # SPDX-License-Identifier: GPL-3.0-or-later
 import copy
-import logging
+from typing import Dict
+from pmb.helpers import logging
 import os
 import pmb.config
+from pmb.core.types import PmbArgs
 import pmb.helpers.devices
 
 
@@ -70,7 +72,7 @@ def sanity_check(info, path):
                            f" and try again: {path}")
 
 
-def _parse_kernel_suffix(args, info, device, kernel):
+def _parse_kernel_suffix(args: PmbArgs, info, device, kernel):
     """
     Remove the kernel suffix (as selected in 'pmbootstrap init') from
     deviceinfo variables. Related:
@@ -111,7 +113,8 @@ def _parse_kernel_suffix(args, info, device, kernel):
     return ret
 
 
-def deviceinfo(args, device=None, kernel=None):
+# FIXME (#2324): Make deviceinfo a type! (class!!!)
+def deviceinfo(args: PmbArgs, device=None, kernel=None) -> Dict[str, str]:
     """
     :param device: defaults to args.device
     :param kernel: defaults to args.kernel

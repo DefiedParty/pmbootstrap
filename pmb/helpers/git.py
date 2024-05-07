@@ -1,27 +1,31 @@
 # Copyright 2023 Oliver Smith
 # SPDX-License-Identifier: GPL-3.0-or-later
 import configparser
-import logging
+from pathlib import Path
+from typing import Dict
+from pmb.helpers import logging
 import os
+from pathlib import Path
 
 import pmb.build
 import pmb.chroot.apk
 import pmb.config
+from pmb.core.types import PmbArgs
 import pmb.helpers.pmaports
 import pmb.helpers.run
 
 
-def get_path(args, name_repo):
+def get_path(args: PmbArgs, name_repo):
     """ Get the path to the repository, which is either the default one in the
         work dir, or a user-specified one in args.
 
         :returns: full path to repository """
     if name_repo == "pmaports":
         return args.aports
-    return args.work + "/cache_git/" + name_repo
+    return pmb.config.work / "cache_git" / name_repo
 
 
-def clone(args, name_repo):
+def clone(args: PmbArgs, name_repo):
     """ Clone a git repository to $WORK/cache_git/$name_repo (or to the
         overridden path set in args, as with pmbootstrap --aports).
 
@@ -41,7 +45,7 @@ def clone(args, name_repo):
 
         # Create parent dir and clone
         logging.info("Clone git repository: " + url)
-        os.makedirs(args.work + "/cache_git", exist_ok=True)
+        os.makedirs(pmb.config.work / "cache_git", exist_ok=True)
         pmb.helpers.run.user(args, command, output="stdout")
 
     # FETCH_HEAD does not exist after initial clone. Create it, so
@@ -51,7 +55,7 @@ def clone(args, name_repo):
         open(fetch_head, "w").close()
 
 
-def rev_parse(args, path, revision="HEAD", extra_args: list = []):
+def rev_parse(args: PmbArgs, path, revision="HEAD", extra_args: list = []):
     """ Run "git rev-parse" in a specific repository dir.
 
         :param path: to the git repository
@@ -61,11 +65,11 @@ def rev_parse(args, path, revision="HEAD", extra_args: list = []):
         :returns: commit string like "90cd0ad84d390897efdcf881c0315747a4f3a966"
                   or (with --abbrev-ref): the branch name, e.g. "master" """
     command = ["git", "rev-parse"] + extra_args + [revision]
-    rev = pmb.helpers.run.user(args, command, path, output_return=True)
+    rev = pmb.helpers.run.user_output(args, command, path)
     return rev.rstrip()
 
 
-def can_fast_forward(args, path, branch_upstream, branch="HEAD"):
+def can_fast_forward(args: PmbArgs, path, branch_upstream, branch="HEAD"):
     command = ["git", "merge-base", "--is-ancestor", branch, branch_upstream]
     ret = pmb.helpers.run.user(args, command, path, check=False)
     if ret == 0:
@@ -76,20 +80,20 @@ def can_fast_forward(args, path, branch_upstream, branch="HEAD"):
         raise RuntimeError("Unexpected exit code from git: " + str(ret))
 
 
-def clean_worktree(args, path):
+def clean_worktree(args: PmbArgs, path):
     """ Check if there are not any modified files in the git dir. """
     command = ["git", "status", "--porcelain"]
-    return pmb.helpers.run.user(args, command, path, output_return=True) == ""
+    return pmb.helpers.run.user_output(args, command, path) == ""
 
 
-def get_upstream_remote(args, name_repo):
+def get_upstream_remote(args: PmbArgs, name_repo):
     """ Find the remote, which matches the git URL from the config. Usually
         "origin", but the user may have set up their git repository
         differently. """
     url = pmb.config.git_repos[name_repo]
     path = get_path(args, name_repo)
     command = ["git", "remote", "-v"]
-    output = pmb.helpers.run.user(args, command, path, output_return=True)
+    output = pmb.helpers.run.user_output(args, command, path)
     for line in output.split("\n"):
         if url in line:
             return line.split("\t", 1)[0]
@@ -97,7 +101,7 @@ def get_upstream_remote(args, name_repo):
                        " repository: {}".format(name_repo, url, path))
 
 
-def parse_channels_cfg(args):
+def parse_channels_cfg(args: PmbArgs):
     """ Parse channels.cfg from pmaports.git, origin/master branch.
         Reference: https://postmarketos.org/channels.cfg
         :returns: dict like: {"meta": {"recommended": "edge"},
@@ -118,8 +122,8 @@ def parse_channels_cfg(args):
     else:
         remote = get_upstream_remote(args, "pmaports")
         command = ["git", "show", f"{remote}/master:channels.cfg"]
-        stdout = pmb.helpers.run.user(args, command, args.aports,
-                                      output_return=True, check=False)
+        stdout = pmb.helpers.run.user_output(args, command, args.aports,
+                                      check=False)
         try:
             cfg.read_string(stdout)
         except configparser.MissingSectionHeaderError:
@@ -130,7 +134,7 @@ def parse_channels_cfg(args):
                                " pmaports clone")
 
     # Meta section
-    ret = {"channels": {}}
+    ret: Dict[str, Dict[str, str | Dict[str, str]]] = {"channels": {}}
     ret["meta"] = {"recommended": cfg.get("channels.cfg", "recommended")}
 
     # Channels
@@ -144,13 +148,14 @@ def parse_channels_cfg(args):
         for key in ["description", "branch_pmaports", "branch_aports",
                     "mirrordir_alpine"]:
             value = cfg.get(channel, key)
-            ret["channels"][channel_new][key] = value
+            # FIXME: how to type this properly??
+            ret["channels"][channel_new][key] = value # type: ignore[index]
 
     pmb.helpers.other.cache[cache_key] = ret
     return ret
 
 
-def get_branches_official(args, name_repo):
+def get_branches_official(args: PmbArgs, name_repo):
     """ Get all branches that point to official release channels.
         :returns: list of supported branches, e.g. ["master", "3.11"] """
     # This functions gets called with pmaports and aports_upstream, because
@@ -166,7 +171,7 @@ def get_branches_official(args, name_repo):
     return ret
 
 
-def pull(args, name_repo):
+def pull(args: PmbArgs, name_repo):
     """ Check if on official branch and essentially try 'git pull --ff-only'.
         Instead of really doing 'git pull --ff-only', do it in multiple steps
         (fetch, merge --ff-only), so we can display useful messages depending
@@ -228,25 +233,24 @@ def pull(args, name_repo):
     return 0
 
 
-def get_topdir(args, path):
+def get_topdir(args: PmbArgs, path: Path):
     """ :returns: a string with the top dir of the git repository, or an
                   empty string if it's not a git repository. """
-    return pmb.helpers.run.user(args, ["git", "rev-parse", "--show-toplevel"],
-                                path, output_return=True, check=False).rstrip()
+    return pmb.helpers.run.user_output(args, ["git", "rev-parse", "--show-toplevel"],
+                                path, check=False).rstrip()
 
 
-def get_files(args, path):
+def get_files(args: PmbArgs, path):
     """ Get all files inside a git repository, that are either already in the
         git tree or are not in gitignore. Do not list deleted files. To be used
         for creating a tarball of the git repository.
         :param path: top dir of the git repository
         :returns: all files in a git repository as list, relative to path """
     ret = []
-    files = pmb.helpers.run.user(args, ["git", "ls-files"], path,
-                                 output_return=True).split("\n")
-    files += pmb.helpers.run.user(args, ["git", "ls-files",
-                                  "--exclude-standard", "--other"], path,
-                                  output_return=True).split("\n")
+    files = pmb.helpers.run.user_output(args, ["git", "ls-files"], path).split("\n")
+    files += pmb.helpers.run.user_output(args, ["git", "ls-files",
+                                                "--exclude-standard", "--other"],
+                                         path).split("\n")
     for file in files:
         if os.path.exists(f"{path}/{file}"):
             ret += [file]

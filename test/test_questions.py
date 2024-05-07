@@ -1,7 +1,8 @@
 # Copyright 2023 Oliver Smith
 # SPDX-License-Identifier: GPL-3.0-or-later
-import logging
+from pmb.helpers import logging
 import os
+from pmb.core.types import PmbArgs
 import pytest
 import sys
 
@@ -20,7 +21,7 @@ def args(tmpdir, request):
     cfg = f"{pmb_test.const.testdata}/channels.cfg"
     sys.argv = ["pmbootstrap.py", "--config-channels", cfg, "init"]
     args = pmb.parse.arguments()
-    args.log = args.work + "/log_testsuite.txt"
+    args.log = pmb.config.work / "log_testsuite.txt"
     pmb.helpers.logging.init(args)
     request.addfinalizer(pmb.helpers.logging.logfd.close)
     return args
@@ -49,7 +50,7 @@ def test_fake_answers_selftest(monkeypatch):
     assert pmb.helpers.cli.ask() == "second"
 
 
-def test_questions_booleans(args, monkeypatch):
+def test_questions_booleans(args: PmbArgs, monkeypatch):
     functions = [pmb.aportgen.device.ask_for_keyboard,
                  pmb.aportgen.device.ask_for_external_storage]
     for func in functions:
@@ -58,14 +59,14 @@ def test_questions_booleans(args, monkeypatch):
         assert func(args) is False
 
 
-def test_questions_strings(args, monkeypatch):
+def test_questions_strings(args: PmbArgs, monkeypatch):
     functions = [pmb.aportgen.device.ask_for_manufacturer]
     for func in functions:
         fake_answers(monkeypatch, ["Simple string answer"])
         assert func() == "Simple string answer"
 
 
-def test_questions_name(args, monkeypatch):
+def test_questions_name(args: PmbArgs, monkeypatch):
     func = pmb.aportgen.device.ask_for_name
 
     # Manufacturer should get added automatically, but not twice
@@ -79,12 +80,12 @@ def test_questions_name(args, monkeypatch):
     assert func("Amazon") == "Google Nexus 12345"
 
 
-def test_questions_arch(args, monkeypatch):
+def test_questions_arch(args: PmbArgs, monkeypatch):
     fake_answers(monkeypatch, ["invalid_arch", "aarch64"])
     assert pmb.aportgen.device.ask_for_architecture() == "aarch64"
 
 
-def test_questions_bootimg(args, monkeypatch):
+def test_questions_bootimg(args: PmbArgs, monkeypatch):
     func = pmb.aportgen.device.ask_for_bootimg
     fake_answers(monkeypatch, ["invalid_path", ""])
     assert func(args) is None
@@ -104,7 +105,7 @@ def test_questions_bootimg(args, monkeypatch):
     assert func(args) == output
 
 
-def test_questions_device(args, monkeypatch):
+def test_questions_device(args: PmbArgs, monkeypatch):
     # Prepare args
     args.aports = pmb_test.const.testdata + "/init_questions_device/aports"
     args.device = "lg-mako"
@@ -138,7 +139,7 @@ def test_questions_device(args, monkeypatch):
     assert func(args) == ("lg-nonexistent", False, kernel)
 
 
-def test_questions_device_kernel(args, monkeypatch):
+def test_questions_device_kernel(args: PmbArgs, monkeypatch):
     # Prepare args
     args.aports = pmb_test.const.testdata + "/init_questions_device/aports"
     args.kernel = "downstream"
@@ -158,7 +159,7 @@ def test_questions_device_kernel(args, monkeypatch):
     assert func(args, device) == "downstream"
 
 
-def test_questions_flash_methods(args, monkeypatch):
+def test_questions_flash_methods(args: PmbArgs, monkeypatch):
     func = pmb.aportgen.device.ask_for_flash_method
     fake_answers(monkeypatch, ["invalid_flash_method", "fastboot"])
     assert func() == "fastboot"
@@ -173,14 +174,14 @@ def test_questions_flash_methods(args, monkeypatch):
     assert func() == "heimdall-bootimg"
 
 
-def test_questions_keymaps(args, monkeypatch):
+def test_questions_keymaps(args: PmbArgs, monkeypatch):
     func = pmb.config.init.ask_for_keymaps
     fake_answers(monkeypatch, ["invalid_keymap", "us/rx51_us"])
     assert func(args, pmb.parse.deviceinfo(args, "nokia-n900")) == "us/rx51_us"
     assert func(args, pmb.parse.deviceinfo(args, "lg-mako")) == ""
 
 
-def test_questions_ui(args, monkeypatch):
+def test_questions_ui(args: PmbArgs, monkeypatch):
     args.aports = pmb_test.const.testdata + "/init_questions_device/aports"
     device = "lg-mako"
     info = pmb.parse.deviceinfo(args, device)
@@ -192,7 +193,7 @@ def test_questions_ui(args, monkeypatch):
     assert pmb.config.init.ask_for_ui(args, info) == "weston"
 
 
-def test_questions_ui_extras(args, monkeypatch):
+def test_questions_ui_extras(args: PmbArgs, monkeypatch):
     args.aports = pmb_test.const.testdata + "/init_questions_device/aports"
     assert not pmb.config.init.ask_for_ui_extras(args, "none")
 
@@ -203,7 +204,7 @@ def test_questions_ui_extras(args, monkeypatch):
     assert pmb.config.init.ask_for_ui_extras(args, "weston")
 
 
-def test_questions_work_path(args, monkeypatch, tmpdir):
+def test_questions_work_path(args: PmbArgs, monkeypatch, tmpdir):
     # Existing paths (triggering various errors)
     func = pmb.config.init.ask_for_work_path
     tmpdir = str(tmpdir)
@@ -217,7 +218,7 @@ def test_questions_work_path(args, monkeypatch, tmpdir):
     assert func(args) == (work, False)
 
 
-def test_questions_additional_options(args, monkeypatch):
+def test_questions_additional_options(args: PmbArgs, monkeypatch):
     func = pmb.config.init.ask_for_additional_options
     cfg = {"pmbootstrap": {}}
 
@@ -239,7 +240,7 @@ def test_questions_additional_options(args, monkeypatch):
                                    "mirrors_postmarketos": mirror}}
 
 
-def test_questions_hostname(args, monkeypatch):
+def test_questions_hostname(args: PmbArgs, monkeypatch):
     func = pmb.config.init.ask_for_hostname
     device = "test-device"
 
@@ -264,6 +265,6 @@ def test_questions_hostname(args, monkeypatch):
     assert func(args, device) == ""
 
 
-def test_questions_channel(args, monkeypatch):
+def test_questions_channel(args: PmbArgs, monkeypatch):
     fake_answers(monkeypatch, ["invalid-channel", "v20.05"])
     assert pmb.config.init.ask_for_channel(args) == "v20.05"

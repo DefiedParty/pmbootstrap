@@ -1,16 +1,18 @@
 # Copyright 2023 Danct12 <danct12@disroot.org>
 # SPDX-License-Identifier: GPL-3.0-or-later
-import logging
+from pathlib import Path
+from pmb.helpers import logging
 import os
 
 import pmb.chroot
 import pmb.chroot.apk
 import pmb.build
+from pmb.core.types import PmbArgs
 import pmb.helpers.run
 import pmb.helpers.pmaports
 
 
-def check(args, pkgnames):
+def check(args: PmbArgs, pkgnames):
     """
     Run apkbuild-lint on the supplied packages
 
@@ -20,7 +22,7 @@ def check(args, pkgnames):
 
     # Mount pmaports.git inside the chroot so that we don't have to copy the
     # package folders
-    pmaports = "/mnt/pmaports"
+    pmaports = Path("/mnt/pmaports")
     pmb.build.mount_pmaports(args, pmaports)
 
     # Locate all APKBUILDs and make the paths be relative to the pmaports
@@ -28,9 +30,8 @@ def check(args, pkgnames):
     apkbuilds = []
     for pkgname in pkgnames:
         aport = pmb.helpers.pmaports.find(args, pkgname)
-        if not os.path.exists(aport + "/APKBUILD"):
-            raise ValueError("Path does not contain an APKBUILD file:" +
-                             aport)
+        if not (aport / "APKBUILD").exists():
+            raise ValueError(f"Path does not contain an APKBUILD file: {aport}")
         relpath = os.path.relpath(aport, args.aports)
         apkbuilds.append(f"{relpath}/APKBUILD")
 

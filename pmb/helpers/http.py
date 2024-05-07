@@ -2,15 +2,21 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 import hashlib
 import json
-import logging
+from pmb.helpers import logging
 import os
+from pathlib import Path
 import shutil
 import urllib.request
 
+from pmb.core.types import PmbArgs
 import pmb.helpers.run
 
+def cache_file(prefix: str, url: str) -> Path:
+    prefix = prefix.replace("/", "_")
+    return Path(f"{prefix}_{hashlib.sha256(url.encode('utf-8')).hexdigest()}")
 
-def download(args, url, prefix, cache=True, loglevel=logging.INFO,
+
+def download(args: PmbArgs, url, prefix, cache=True, loglevel=logging.INFO,
              allow_404=False):
     """ Download a file to disk.
 
@@ -27,13 +33,11 @@ def download(args, url, prefix, cache=True, loglevel=logging.INFO,
                           stdout (no matter if loglevel is changed).
         :returns: path to the downloaded file in the cache or None on 404 """
     # Create cache folder
-    if not os.path.exists(args.work + "/cache_http"):
-        pmb.helpers.run.user(args, ["mkdir", "-p", args.work + "/cache_http"])
+    if not os.path.exists(pmb.config.work / "cache_http"):
+        pmb.helpers.run.user(args, ["mkdir", "-p", pmb.config.work / "cache_http"])
 
     # Check if file exists in cache
-    prefix = prefix.replace("/", "_")
-    path = (args.work + "/cache_http/" + prefix + "_" +
-            hashlib.sha256(url.encode("utf-8")).hexdigest())
+    path = pmb.config.work / "cache_http" / cache_file(prefix, url)
     if os.path.exists(path):
         if cache:
             return path

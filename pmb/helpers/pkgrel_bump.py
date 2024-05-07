@@ -1,14 +1,16 @@
 # Copyright 2023 Oliver Smith
 # SPDX-License-Identifier: GPL-3.0-or-later
-import logging
+from pmb.helpers import logging
 
+from pmb.core.types import PmbArgs
 import pmb.helpers.file
 import pmb.helpers.pmaports
 import pmb.helpers.repo
 import pmb.parse
+import pmb.parse.apkindex
 
 
-def package(args, pkgname, reason="", dry=False):
+def package(args: PmbArgs, pkgname, reason="", dry=False):
     """
     Increase the pkgrel in the APKBUILD of a specific package.
 
@@ -17,7 +19,7 @@ def package(args, pkgname, reason="", dry=False):
     :param dry: don't modify the APKBUILD, just print the message
     """
     # Current and new pkgrel
-    path = pmb.helpers.pmaports.find(args, pkgname) + "/APKBUILD"
+    path = pmb.helpers.pmaports.find(args, pkgname) / "APKBUILD"
     apkbuild = pmb.parse.apkbuild(path)
     pkgrel = int(apkbuild["pkgrel"])
     pkgrel_new = pkgrel + 1
@@ -43,7 +45,7 @@ def package(args, pkgname, reason="", dry=False):
                            path)
 
 
-def auto_apkindex_package(args, arch, aport, apk, dry=False):
+def auto_apkindex_package(args: PmbArgs, arch, aport, apk, dry=False):
     """
     Bump the pkgrel of a specific package if it is outdated in the given
     APKINDEX.
@@ -92,7 +94,7 @@ def auto_apkindex_package(args, arch, aport, apk, dry=False):
             # (which means dynamic libraries that the package was linked
             # against) and packages for which no aport exists.
             if (depend.startswith("so:") or
-                    not pmb.helpers.pmaports.find(args, depend, False)):
+                    not pmb.helpers.pmaports.find_optional(args, depend)):
                 missing.append(depend)
 
     # Increase pkgrel
@@ -102,7 +104,7 @@ def auto_apkindex_package(args, arch, aport, apk, dry=False):
         return True
 
 
-def auto(args, dry=False):
+def auto(args: PmbArgs, dry=False):
     """
     :returns: list of aport names, where the pkgrel needed to be changed
     """
@@ -110,7 +112,7 @@ def auto(args, dry=False):
     for arch in pmb.config.build_device_architectures:
         paths = pmb.helpers.repo.apkindex_files(args, arch, alpine=False)
         for path in paths:
-            logging.info("scan " + path)
+            logging.info(f"scan {path}")
             index = pmb.parse.apkindex.parse(path, False)
             for pkgname, apk in index.items():
                 origin = apk["origin"]
@@ -119,12 +121,12 @@ def auto(args, dry=False):
                     logging.verbose(
                         f"{pkgname}: origin '{origin}' found again")
                     continue
-                aport_path = pmb.helpers.pmaports.find(args, origin, False)
+                aport_path = pmb.helpers.pmaports.find_optional(args, origin)
                 if not aport_path:
                     logging.warning("{}: origin '{}' aport not found".format(
                                     pkgname, origin))
                     continue
-                aport = pmb.parse.apkbuild(f"{aport_path}/APKBUILD")
+                aport = pmb.parse.apkbuild(aport_path)
                 if auto_apkindex_package(args, arch, aport, apk, dry):
                     ret.append(pkgname)
     return ret

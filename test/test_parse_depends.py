@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """ Test pmb.parse.depends """
 import collections
+from pmb.core.types import PmbArgs
 import pytest
 import sys
 
@@ -17,13 +18,13 @@ def args(tmpdir, request):
     import pmb.parse
     sys.argv = ["pmbootstrap", "init"]
     args = pmb.parse.arguments()
-    args.log = args.work + "/log_testsuite.txt"
+    args.log = pmb.config.work / "log_testsuite.txt"
     pmb.helpers.logging.init(args)
     request.addfinalizer(pmb.helpers.logging.logfd.close)
     return args
 
 
-def test_package_from_aports(args):
+def test_package_from_aports(args: PmbArgs):
     func = pmb.parse.depends.package_from_aports
     assert func(args, "invalid-package") is None
     assert func(args, "hello-world") == {"pkgname": "hello-world",
@@ -31,7 +32,7 @@ def test_package_from_aports(args):
                                          "version": "1-r6"}
 
 
-def test_package_provider(args, monkeypatch):
+def test_package_provider(args: PmbArgs, monkeypatch):
     # Override pmb.parse.apkindex.providers()
     providers = collections.OrderedDict()
 
@@ -85,7 +86,7 @@ def test_package_provider(args, monkeypatch):
     assert func(args, pkgname, pkgnames_install) == package
 
 
-def test_package_from_index(args, monkeypatch):
+def test_package_from_index(args: PmbArgs, monkeypatch):
     # Override pmb.parse.depends.package_provider()
     provider = None
 
@@ -112,7 +113,7 @@ def test_package_from_index(args, monkeypatch):
         assert func(args, pkgname, pkgnames_install, aport) is provider
 
 
-def test_recurse_invalid(args, monkeypatch):
+def test_recurse_invalid(args: PmbArgs, monkeypatch):
     func = pmb.parse.depends.recurse
 
     # Invalid package
@@ -125,7 +126,7 @@ def return_none(*args, **kwargs):
     return None
 
 
-def test_recurse(args, monkeypatch):
+def test_recurse(args: PmbArgs, monkeypatch):
     """
     Test recursing through the following dependencies:
 

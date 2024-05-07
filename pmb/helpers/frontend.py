@@ -1,9 +1,10 @@
 # Copyright 2023 Oliver Smith
 # SPDX-License-Identifier: GPL-3.0-or-later
-import glob
 import json
-import logging
+from typing import List, Sequence
+from pmb.helpers import logging
 import os
+from pathlib import Path
 import sys
 
 import pmb.aportgen
@@ -14,6 +15,7 @@ import pmb.chroot.initfs
 import pmb.chroot.other
 import pmb.ci
 import pmb.config
+from pmb.core.types import PathString, PmbArgs
 import pmb.export
 import pmb.flasher
 import pmb.helpers.aportupgrade
@@ -34,10 +36,10 @@ import pmb.netboot
 import pmb.parse
 import pmb.qemu
 import pmb.sideload
-from argparse import Namespace
+from pmb.core import ChrootType, Chroot
 
 
-def _parse_flavor(args, autoinstall=True):
+def _parse_flavor(args: PmbArgs, autoinstall=True):
     """
     Verify the flavor argument if specified, or return a default value.
     :param autoinstall: make sure that at least one kernel flavor is installed
@@ -46,35 +48,37 @@ def _parse_flavor(args, autoinstall=True):
     # identifier that is typically in the form
     # "postmarketos-<manufacturer>-<device/chip>", e.g.
     # "postmarketos-qcom-sdm845"
-    suffix = "rootfs_" + args.device
+    chroot = Chroot(ChrootType.ROOTFS, args.device)
     flavor = pmb.chroot.other.kernel_flavor_installed(
-        args, suffix, autoinstall)
+        args, chroot, autoinstall)
 
     if not flavor:
         raise RuntimeError(
-            "No kernel flavors installed in chroot " + suffix + "! Please let"
+           f"No kernel flavors installed in chroot '{chroot}'! Please let"
             " your device package depend on a package starting with 'linux-'.")
     return flavor
 
 
-def _parse_suffix(args):
+def _parse_suffix(args: PmbArgs) -> Chroot:
     if "rootfs" in args and args.rootfs:
-        return "rootfs_" + args.device
+        return Chroot(ChrootType.ROOTFS, args.device)
     elif args.buildroot:
         if args.buildroot == "device":
-            return "buildroot_" + args.deviceinfo["arch"]
+            return Chroot.buildroot(args.deviceinfo["arch"])
         else:
-            return "buildroot_" + args.buildroot
+            return Chroot.buildroot(args.buildroot)
     elif args.suffix:
-        return args.suffix
+        (_t, s) = args.suffix.split("_")
+        t: ChrootType = ChrootType(_t)
+        return Chroot(t, s)
     else:
-        return "native"
+        return Chroot(ChrootType.NATIVE)
 
 
-def _install_ondev_verify_no_rootfs(args):
+def _install_ondev_verify_no_rootfs(args: PmbArgs):
     chroot_dest = "/var/lib/rootfs.img"
-    dest = f"{args.work}/chroot_installer_{args.device}{chroot_dest}"
-    if os.path.exists(dest):
+    dest = Chroot(ChrootType.INSTALLER, args.device) / chroot_dest
+    if dest.exists():
         return
 
     if args.ondev_cp:
@@ -89,13 +93,13 @@ def _install_ondev_verify_no_rootfs(args):
                      f" --cp os.img:{chroot_dest}")
 
 
-def aportgen(args):
+def aportgen(args: PmbArgs):
     for package in args.packages:
         logging.info("Generate aport: " + package)
         pmb.aportgen.generate(args, package)
 
 
-def build(args):
+def build(args: PmbArgs):
     # Strict mode: zap everything
     if args.strict:
         pmb.chroot.zap(args, False)
@@ -127,12 +131,12 @@ def build(args):
                          " if needed.")
 
 
-def build_init(args):
+def build_init(args: PmbArgs):
     suffix = _parse_suffix(args)
     pmb.build.init(args, suffix)
 
 
-def checksum(args):
+def checksum(args: PmbArgs):
     for package in args.packages:
         if args.verify:
             pmb.build.checksum.verify(args, package)
@@ -140,7 +144,7 @@ def checksum(args):
             pmb.build.checksum.update(args, package)
 
 
-def sideload(args):
+def sideload(args: PmbArgs):
     arch = args.arch
     user = args.user
     host = args.host
@@ -148,19 +152,19 @@ def sideload(args):
                           args.packages)
 
 
-def netboot(args):
+def netboot(args: PmbArgs):
     if args.action_netboot == "serve":
         pmb.netboot.start_nbd_server(args)
 
 
-def chroot(args):
+def chroot(args: PmbArgs):
     # Suffix
     suffix = _parse_suffix(args)
-    if (args.user and suffix != "native" and
-            not suffix.startswith("buildroot_")):
+    if (args.user and suffix != Chroot.native() and
+            not suffix.type() == ChrootType.BUILDROOT):
         raise RuntimeError("--user is only supported for native or"
                            " buildroot_* chroots.")
-    if args.xauth and suffix != "native":
+    if args.xauth and suffix != Chroot.native():
         raise RuntimeError("--xauth is only supported for native chroot.")
 
     # apk: check minimum version, install packages
@@ -185,17 +189,17 @@ def chroot(args):
 
     # Run the command as user/root
     if args.user:
-        logging.info("(" + suffix + ") % su pmos -c '" +
+        logging.info(f"({suffix}) % su pmos -c '" +
                      " ".join(args.command) + "'")
         pmb.chroot.user(args, args.command, suffix, output=args.output,
                         env=env)
     else:
-        logging.info("(" + suffix + ") % " + " ".join(args.command))
+        logging.info(f"({suffix}) % " + " ".join(args.command))
         pmb.chroot.root(args, args.command, suffix, output=args.output,
                         env=env)
 
 
-def config(args):
+def config(args: PmbArgs):
     keys = pmb.config.config_keys
     if args.name and args.name not in keys:
         logging.info("NOTE: Valid config keys: " + ", ".join(keys))
@@ -224,25 +228,25 @@ def config(args):
     pmb.helpers.logging.disable()
 
 
-def repo_bootstrap(args):
+def repo_bootstrap(args: PmbArgs):
     pmb.helpers.repo_bootstrap.main(args)
 
 
-def repo_missing(args):
+def repo_missing(args: PmbArgs):
     missing = pmb.helpers.repo_missing.generate(args, args.arch, args.overview,
                                                 args.package, args.built)
     print(json.dumps(missing, indent=4))
 
 
-def index(args):
+def index(args: PmbArgs):
     pmb.build.index_repo(args)
 
 
-def initfs(args):
+def initfs(args: PmbArgs):
     pmb.chroot.initfs.frontend(args)
 
 
-def install(args):
+def install(args: PmbArgs):
     if args.no_fde:
         logging.warning("WARNING: --no-fde is deprecated,"
                         " as it is now the default.")
@@ -333,7 +337,7 @@ def install(args):
         args.build_pkgs_on_install = False
 
         # Safest way to avoid installing local packages is having none
-        if glob.glob(f"{args.work}/packages/*"):
+        if (pmb.config.work / "packages").glob("*"):
             raise ValueError("--no-local-pkgs specified, but locally built"
                              " packages found. Consider 'pmbootstrap zap -p'"
                              " to delete them.")
@@ -344,15 +348,15 @@ def install(args):
     pmb.install.install(args)
 
 
-def flasher(args):
+def flasher(args: PmbArgs):
     pmb.flasher.frontend(args)
 
 
-def export(args):
+def export(args: PmbArgs):
     pmb.export.frontend(args)
 
 
-def update(args):
+def update(args: PmbArgs):
     existing_only = not args.non_existing
     if not pmb.helpers.repo.update(args, args.arch, True, existing_only):
         logging.info("No APKINDEX files exist, so none have been updated."
@@ -363,7 +367,7 @@ def update(args):
                      " pmbootstrap update --non-existing")
 
 
-def newapkbuild(args):
+def newapkbuild(args: PmbArgs):
     # Check for SRCURL usage
     is_url = False
     for prefix in ["http://", "https://", "ftp://"]:
@@ -394,7 +398,7 @@ def newapkbuild(args):
     pmb.build.newapkbuild(args, args.folder, pass_through, args.force)
 
 
-def kconfig(args):
+def kconfig(args: PmbArgs):
     if args.action_kconfig == "check":
         details = args.kconfig_check_details
         # Build the components list from cli arguments (--waydroid etc.)
@@ -412,11 +416,16 @@ def kconfig(args):
             raise RuntimeError("kconfig check failed!")
 
         # Default to all kernel packages
-        packages = args.package
+        packages: List[str]
+        # FIXME (#2324): figure out the args.package vs args.packages situation
+        if isinstance(args.package, list):
+            packages = args.package
+        else:
+            packages = [args.package]
         if not args.package:
-            for aport in pmb.helpers.pmaports.get_list(args):
-                if aport.startswith("linux-"):
-                    packages.append(aport.split("linux-")[1])
+            for pkg in pmb.helpers.pmaports.get_list(args):
+                if pkg.startswith("linux-"):
+                    packages.append(pkg.split("linux-")[1])
 
         # Iterate over all kernels
         error = False
@@ -427,7 +436,7 @@ def kconfig(args):
                 pkgname = package if package.startswith("linux-") \
                     else "linux-" + package
                 aport = pmb.helpers.pmaports.find(args, pkgname)
-                apkbuild = pmb.parse.apkbuild(f"{aport}/APKBUILD")
+                apkbuild = pmb.parse.apkbuild(aport)
                 if "!pmb:kconfigcheck" in apkbuild["options"]:
                     skipped += 1
                     continue
@@ -445,14 +454,14 @@ def kconfig(args):
             logging.info("kconfig check succeeded!")
     elif args.action_kconfig in ["edit", "migrate"]:
         if args.package:
-            pkgname = args.package
+            pkgname = args.package if isinstance(args.package, str) else args.package[0]
         else:
             pkgname = args.deviceinfo["codename"]
         use_oldconfig = args.action_kconfig == "migrate"
         pmb.build.menuconfig(args, pkgname, use_oldconfig)
 
 
-def deviceinfo_parse(args):
+def deviceinfo_parse(args: PmbArgs):
     # Default to all devices
     devices = args.devices
     if not devices:
@@ -466,9 +475,9 @@ def deviceinfo_parse(args):
                          sort_keys=True))
 
 
-def apkbuild_parse(args):
+def apkbuild_parse(args: PmbArgs):
     # Default to all packages
-    packages = args.packages
+    packages: Sequence[str] = args.packages
     if not packages:
         packages = pmb.helpers.pmaports.get_list(args)
 
@@ -476,22 +485,20 @@ def apkbuild_parse(args):
     for package in packages:
         print(package + ":")
         aport = pmb.helpers.pmaports.find(args, package)
-        path = aport + "/APKBUILD"
-        print(json.dumps(pmb.parse.apkbuild(path), indent=4,
+        print(json.dumps(pmb.parse.apkbuild(aport), indent=4,
                          sort_keys=True))
 
 
-def apkindex_parse(args):
+def apkindex_parse(args: PmbArgs):
     result = pmb.parse.apkindex.parse(args.apkindex_path)
     if args.package:
         if args.package not in result:
-            raise RuntimeError("Package not found in the APKINDEX: " +
-                               args.package)
+            raise RuntimeError(f"Package not found in the APKINDEX: {args.package}")
         result = result[args.package]
     print(json.dumps(result, indent=4))
 
 
-def pkgrel_bump(args):
+def pkgrel_bump(args: PmbArgs):
     would_bump = True
     if args.auto:
         would_bump = pmb.helpers.pkgrel_bump.auto(args, args.dry)
@@ -509,7 +516,7 @@ def pkgrel_bump(args):
         sys.exit(1)
 
 
-def aportupgrade(args):
+def aportupgrade(args: PmbArgs):
     if args.all or args.all_stable or args.all_git:
         pmb.helpers.aportupgrade.upgrade_all(args)
     else:
@@ -522,39 +529,39 @@ def aportupgrade(args):
             pmb.helpers.aportupgrade.upgrade(args, package)
 
 
-def qemu(args):
+def qemu(args: PmbArgs):
     pmb.qemu.run(args)
 
 
-def shutdown(args):
+def shutdown(args: PmbArgs):
     pmb.chroot.shutdown(args)
 
 
-def stats(args):
+def stats(args: PmbArgs):
     # Chroot suffix
-    suffix = "native"
+    chroot = Chroot.native()
     if args.arch != pmb.config.arch_native:
-        suffix = "buildroot_" + args.arch
+        chroot = Chroot.buildroot(args.arch)
 
     # Install ccache and display stats
-    pmb.chroot.apk.install(args, ["ccache"], suffix)
-    logging.info("(" + suffix + ") % ccache -s")
-    pmb.chroot.user(args, ["ccache", "-s"], suffix, output="stdout")
+    pmb.chroot.apk.install(args, ["ccache"], chroot)
+    logging.info(f"({chroot}) % ccache -s")
+    pmb.chroot.user(args, ["ccache", "-s"], chroot, output="stdout")
 
 
-def work_migrate(args):
+def work_migrate(args: PmbArgs):
     # do nothing (pmb/__init__.py already did the migration)
     pmb.helpers.logging.disable()
 
 
-def log(args):
-    log_testsuite = f"{args.work}/log_testsuite.txt"
+def log(args: PmbArgs):
+    log_testsuite = pmb.config.work / "log_testsuite.txt"
 
     if args.clear_log:
         pmb.helpers.run.user(args, ["truncate", "-s", "0", args.log])
         pmb.helpers.run.user(args, ["truncate", "-s", "0", log_testsuite])
 
-    cmd = ["tail", "-n", args.lines, "-F"]
+    cmd: List[PathString] = ["tail", "-n", args.lines, "-F"]
 
     # Follow the testsuite's log file too if it exists. It will be created when
     # starting a test case that writes to it (git -C test grep log_testsuite).
@@ -569,7 +576,7 @@ def log(args):
     pmb.helpers.run.user(args, cmd, output="tui")
 
 
-def zap(args):
+def zap(args: PmbArgs):
     pmb.chroot.zap(args, dry=args.dry, http=args.http,
                    distfiles=args.distfiles, pkgs_local=args.pkgs_local,
                    pkgs_local_mismatch=args.pkgs_local_mismatch,
@@ -580,7 +587,7 @@ def zap(args):
     pmb.helpers.logging.disable()
 
 
-def bootimg_analyze(args):
+def bootimg_analyze(args: PmbArgs):
     bootimg = pmb.parse.bootimg(args, args.path)
     tmp_output = "Put these variables in the deviceinfo file of your device:\n"
     for line in pmb.aportgen.device.\
@@ -589,7 +596,7 @@ def bootimg_analyze(args):
     logging.info(tmp_output)
 
 
-def pull(args):
+def pull(args: PmbArgs):
     failed = []
     for repo in pmb.config.git_repos.keys():
         if pmb.helpers.git.pull(args, repo) < 0:
@@ -615,23 +622,23 @@ def pull(args):
     return False
 
 
-def lint(args):
-    packages = args.packages
+def lint(args: PmbArgs):
+    packages: Sequence[str] = args.packages
     if not packages:
         packages = pmb.helpers.pmaports.get_list(args)
 
     pmb.helpers.lint.check(args, packages)
 
 
-def status(args: Namespace) -> None:
+def status(args: PmbArgs) -> None:
     pmb.helpers.status.print_status(args)
 
     # Do not print the DONE! line
     sys.exit(0)
 
 
-def ci(args):
-    topdir = pmb.helpers.git.get_topdir(args, os.getcwd())
+def ci(args: PmbArgs):
+    topdir = pmb.helpers.git.get_topdir(args, Path.cwd())
     if not os.path.exists(topdir):
         logging.error("ERROR: change your current directory to a git"
                       " repository (e.g. pmbootstrap, pmaports) before running"

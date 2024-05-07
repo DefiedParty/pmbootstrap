@@ -6,8 +6,10 @@ Functions that work with both pmaports and binary package repos. See also:
 - pmb/helpers/repo.py (work with binary package repos)
 """
 import copy
-import logging
+from typing import Any, Dict
+from pmb.helpers import logging
 
+from pmb.core.types import PmbArgs
 import pmb.helpers.pmaports
 import pmb.helpers.repo
 
@@ -20,7 +22,7 @@ def remove_operators(package):
     return package
 
 
-def get(args, pkgname, arch, replace_subpkgnames=False, must_exist=True):
+def get(args: PmbArgs, pkgname, arch, replace_subpkgnames=False, must_exist=True):
     """ Find a package in pmaports, and as fallback in the APKINDEXes of the
         binary packages.
         :param pkgname: package name (e.g. "hello-world")
@@ -53,7 +55,7 @@ def get(args, pkgname, arch, replace_subpkgnames=False, must_exist=True):
         ]
 
     # Find in pmaports
-    ret = None
+    ret: Dict[str, Any] = {}
     pmaport = pmb.helpers.pmaports.get(args, pkgname, False)
     if pmaport:
         ret = {"arch": pmaport["arch"],
@@ -126,7 +128,7 @@ def get(args, pkgname, arch, replace_subpkgnames=False, must_exist=True):
                        " could not find this package in any APKINDEX!")
 
 
-def depends_recurse(args, pkgname, arch):
+def depends_recurse(args: PmbArgs, pkgname, arch):
     """ Recursively resolve all of the package's dependencies.
         :param pkgname: name of the package (e.g. "device-samsung-i9100")
         :param arch: preferred architecture for binary packages
@@ -163,7 +165,7 @@ def depends_recurse(args, pkgname, arch):
     return ret
 
 
-def check_arch(args, pkgname, arch, binary=True):
+def check_arch(args: PmbArgs, pkgname, arch, binary=True):
     """ Can a package be built for a certain architecture, or is there a binary
         package for it?
 

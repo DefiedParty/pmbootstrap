@@ -3,6 +3,7 @@
 """ Test pmb.helper.pkgrel_bump """
 import glob
 import os
+from pmb.core.types import PmbArgs
 import pytest
 import sys
 
@@ -17,13 +18,13 @@ def args(request):
     import pmb.parse
     sys.argv = ["pmbootstrap.py", "chroot"]
     args = pmb.parse.arguments()
-    args.log = args.work + "/log_testsuite.txt"
+    args.log = pmb.config.work / "log_testsuite.txt"
     pmb.helpers.logging.init(args)
     request.addfinalizer(pmb.helpers.logging.logfd.close)
     return args
 
 
-def pmbootstrap(args, tmpdir, parameters, zero_exit=True):
+def pmbootstrap(args: PmbArgs, tmpdir, parameters, zero_exit=True):
     """
     Helper function for running pmbootstrap inside the fake work folder
     (created by setup() below) with the binary repo disabled and with the
@@ -57,7 +58,7 @@ def pmbootstrap(args, tmpdir, parameters, zero_exit=True):
         raise RuntimeError("Expected pmbootstrap to fail, but it did not!")
 
 
-def setup_work(args, tmpdir):
+def setup_work(args: PmbArgs, tmpdir):
     """
     Create fake work folder in tmpdir with everything symlinked except for the
     built packages. The aports testdata gets copied to the tempfolder as
@@ -72,7 +73,7 @@ def setup_work(args, tmpdir):
     pmb.helpers.run.user(args, ["./pmbootstrap.py", "shutdown"])
 
     # Link everything from work (except for "packages") to the tmpdir
-    for path in glob.glob(args.work + "/*"):
+    for path in pmb.config.work.glob("*"):
         if os.path.basename(path) != "packages":
             pmb.helpers.run.user(args, ["ln", "-s", path, tmpdir + "/"])
 
@@ -90,7 +91,7 @@ def setup_work(args, tmpdir):
                                     f"{tmpdir}/_aports/main/{pkgname}"])
 
     # Copy pmaports.cfg
-    pmb.helpers.run.user(args, ["cp", args.aports + "/pmaports.cfg", tmpdir +
+    pmb.helpers.run.user(args, ["cp", args.aports / "pmaports.cfg", tmpdir +
                                 "/_aports"])
 
     # Empty packages folder
@@ -123,7 +124,7 @@ def verify_pkgrels(tmpdir, pkgrel_testlib, pkgrel_testapp,
         assert pkgrel == int(apkbuild["pkgrel"])
 
 
-def test_pkgrel_bump_high_level(args, tmpdir):
+def test_pkgrel_bump_high_level(args: PmbArgs, tmpdir):
     # Tempdir setup
     tmpdir = str(tmpdir)
     setup_work(args, tmpdir)

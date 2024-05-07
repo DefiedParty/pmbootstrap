@@ -1,12 +1,13 @@
 # Copyright 2023 Attila Szollosi
 # SPDX-License-Identifier: GPL-3.0-or-later
-import glob
-import logging
+from pathlib import Path
+from pmb.helpers import logging
 import re
 import os
 
 import pmb.build
 import pmb.config
+from pmb.core.types import PmbArgs
 import pmb.parse
 import pmb.helpers.pmaports
 from pmb.helpers.exceptions import NonBugError
@@ -228,7 +229,7 @@ def check_config(config_path, config_arch, pkgver, components_list=[],
     return all(results)
 
 
-def check(args, pkgname, components_list=[], details=False, must_exist=True):
+def check(args: PmbArgs, pkgname, components_list=[], details=False, must_exist=True):
     """
     Check for necessary kernel config options in a package.
 
@@ -251,21 +252,25 @@ def check(args, pkgname, components_list=[], details=False, must_exist=True):
 
     # Read all kernel configs in the aport
     ret = True
-    aport = pmb.helpers.pmaports.find(args, "linux-" + flavor, must_exist=must_exist)
-    if aport is None:
+    aport: Path
+    try:
+        aport = pmb.helpers.pmaports.find(args, "linux-" + flavor)
+    except RuntimeError as e:
+        if must_exist:
+            raise e
         return None
-    apkbuild = pmb.parse.apkbuild(f"{aport}/APKBUILD")
+    apkbuild = pmb.parse.apkbuild(aport / "APKBUILD")
     pkgver = apkbuild["pkgver"]
 
     # We only enforce optional checks for community & main devices
-    enforce_check = aport.split("/")[-2] in ["community", "main"]
+    enforce_check = aport.parts[-2] in ["community", "main"]
 
     for name in get_all_component_names():
         if f"pmb:kconfigcheck-{name}" in apkbuild["options"] and \
                 name not in components_list:
             components_list += [name]
 
-    for config_path in glob.glob(aport + "/config-*"):
+    for config_path in aport.glob("config-*"):
         # The architecture of the config is in the name, so it just needs to be
         # extracted
         config_name = os.path.basename(config_path)

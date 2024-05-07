@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 import os
 import copy
+from pathlib import Path
 import sys
 import tarfile
 import glob
@@ -12,6 +13,7 @@ import pmb.chroot.apk_static
 import pmb.config
 import pmb.parse.apkindex
 import pmb.helpers.logging
+from pmb.core.types import PmbArgs
 
 
 @pytest.fixture
@@ -19,50 +21,50 @@ def args(request):
     import pmb.parse
     sys.argv = ["pmbootstrap.py", "chroot"]
     args = pmb.parse.arguments()
-    args.log = args.work + "/log_testsuite.txt"
+    args.log = pmb.config.work / "log_testsuite.txt"
     pmb.helpers.logging.init(args)
     request.addfinalizer(pmb.helpers.logging.logfd.close)
     return args
 
 
-def test_read_signature_info(args):
+def test_read_signature_info(args: PmbArgs):
     # Tempfolder inside chroot for fake apk files
-    tmp_path = "/tmp/test_read_signature_info"
-    tmp_path_outside = args.work + "/chroot_native" + tmp_path
+    tmp_path = Path("/tmp/test_read_signature_info")
+    tmp_path_outside = pmb.config.work / "chroot_native" / tmp_path
     if os.path.exists(tmp_path_outside):
         pmb.chroot.root(args, ["rm", "-r", tmp_path])
     pmb.chroot.user(args, ["mkdir", "-p", tmp_path])
 
     # No signature found
-    pmb.chroot.user(args, ["tar", "-czf", tmp_path + "/no_sig.apk",
+    pmb.chroot.user(args, ["tar", "-czf", tmp_path / "no_sig.apk",
                            "/etc/issue"])
-    with tarfile.open(tmp_path_outside + "/no_sig.apk", "r:gz") as tar:
+    with tarfile.open(tmp_path_outside / "no_sig.apk", "r:gz") as tar:
         with pytest.raises(RuntimeError) as e:
             pmb.chroot.apk_static.read_signature_info(tar)
         assert "Could not find signature" in str(e.value)
 
     # Signature file with invalid name
-    pmb.chroot.user(args, ["mkdir", "-p", tmp_path + "/sbin"])
-    pmb.chroot.user(args, ["cp", "/etc/issue", tmp_path +
-                           "/sbin/apk.static.SIGN.RSA.invalid.pub"])
-    pmb.chroot.user(args, ["tar", "-czf", tmp_path + "/invalid_sig.apk",
+    pmb.chroot.user(args, ["mkdir", "-p", tmp_path / "sbin"])
+    pmb.chroot.user(args, ["cp", "/etc/issue", tmp_path /
+                           "sbin/apk.static.SIGN.RSA.invalid.pub"])
+    pmb.chroot.user(args, ["tar", "-czf", tmp_path / "invalid_sig.apk",
                            "sbin/apk.static.SIGN.RSA.invalid.pub"],
                     working_dir=tmp_path)
-    with tarfile.open(tmp_path_outside + "/invalid_sig.apk", "r:gz") as tar:
+    with tarfile.open(tmp_path_outside / "invalid_sig.apk", "r:gz") as tar:
         with pytest.raises(RuntimeError) as e:
             pmb.chroot.apk_static.read_signature_info(tar)
         assert "Invalid signature key" in str(e.value)
 
     # Signature file with realistic name
-    path = glob.glob(pmb.config.apk_keys_path + "/*.pub")[0]
+    path = list(pmb.config.apk_keys_path.glob("/*.pub"))[0]
     name = os.path.basename(path)
     path_archive = "sbin/apk.static.SIGN.RSA." + name
     pmb.chroot.user(args, ["mv",
-                           f"{tmp_path}/sbin/apk.static.SIGN.RSA.invalid.pub",
-                           f"{tmp_path}/{path_archive}"])
-    pmb.chroot.user(args, ["tar", "-czf", tmp_path + "/realistic_name_sig.apk",
+                           tmp_path / "sbin/apk.static.SIGN.RSA.invalid.pub",
+                           tmp_path / path_archive])
+    pmb.chroot.user(args, ["tar", "-czf", tmp_path / "realistic_name_sig.apk",
                            path_archive], working_dir=tmp_path)
-    with tarfile.open(f"{tmp_path_outside}/realistic_name_sig.apk", "r:gz")\
+    with tarfile.open(tmp_path_outside / "realistic_name_sig.apk", "r:gz")\
             as tar:
         sigfilename, sigkey_path = pmb.chroot.apk_static.read_signature_info(
             tar)
@@ -73,18 +75,18 @@ def test_read_signature_info(args):
     pmb.chroot.user(args, ["rm", "-r", tmp_path])
 
 
-def test_successful_extraction(args, tmpdir):
-    if os.path.exists(args.work + "/apk.static"):
-        os.remove(args.work + "/apk.static")
+def test_successful_extraction(args: PmbArgs, tmpdir):
+    if os.path.exists(pmb.config.work / "apk.static"):
+        os.remove(pmb.config.work / "apk.static")
 
     pmb.chroot.apk_static.init(args)
-    assert os.path.exists(args.work + "/apk.static")
-    os.remove(args.work + "/apk.static")
+    assert os.path.exists(pmb.config.work / "apk.static")
+    os.remove(pmb.config.work / "apk.static")
 
 
-def test_signature_verification(args, tmpdir):
-    if os.path.exists(args.work + "/apk.static"):
-        os.remove(args.work + "/apk.static")
+def test_signature_verification(args: PmbArgs, tmpdir):
+    if os.path.exists(pmb.config.work / "apk.static"):
+        os.remove(pmb.config.work / "apk.static")
 
     version = pmb.parse.apkindex.package(args, "apk-tools-static")["version"]
     apk_path = pmb.chroot.apk_static.download(
@@ -116,9 +118,9 @@ def test_signature_verification(args, tmpdir):
     assert "downgrade attack" in str(e.value)
 
 
-def test_outdated_version(args, monkeypatch):
-    if os.path.exists(args.work + "/apk.static"):
-        os.remove(args.work + "/apk.static")
+def test_outdated_version(args: PmbArgs, monkeypatch):
+    if os.path.exists(pmb.config.work / "apk.static"):
+        os.remove(pmb.config.work / "apk.static")
 
     # Change min version for all branches
     min_copy = copy.copy(pmb.config.apk_tools_min_version)

@@ -1,16 +1,18 @@
 # Copyright 2023 Oliver Smith
 # SPDX-License-Identifier: GPL-3.0-or-later
 import collections
-import logging
-import os
+from typing import Any, Dict, List
+from pmb.helpers import logging
+from pathlib import Path
 import tarfile
 import pmb.chroot.apk
+from pmb.core.types import PmbArgs
 import pmb.helpers.package
 import pmb.helpers.repo
 import pmb.parse.version
 
 
-def parse_next_block(path, lines, start):
+def parse_next_block(path: Path, lines, start):
     """
     Parse the next block in an APKINDEX.
 
@@ -36,7 +38,7 @@ def parse_next_block(path, lines, start):
     """
 
     # Parse until we hit an empty line or end of file
-    ret = {}
+    ret: Dict[str, Any] = {}
     mapping = {
         "A": "arch",
         "D": "depends",
@@ -62,9 +64,8 @@ def parse_next_block(path, lines, start):
         for letter, key in mapping.items():
             if line.startswith(letter + ":"):
                 if key in ret:
-                    raise RuntimeError(
-                        "Key " + key + " (" + letter + ":) specified twice"
-                        " in block: " + str(ret) + ", file: " + path)
+                    raise RuntimeError(f"Key {key} ({letter}:) specified twice"
+                        f" in block: {ret}, file: {path}")
                 ret[key] = line[2:-1]
 
     # Format and return the block
@@ -93,9 +94,9 @@ def parse_next_block(path, lines, start):
 
     # No more blocks
     elif ret != {}:
-        raise RuntimeError("Last block in " + path + " does not end"
-                           " with a new line! Delete the file and"
-                           " try again. Last block: " + str(ret))
+        raise RuntimeError(f"Last block in {path} does not end"
+                            " with a new line! Delete the file and"
+                           f" try again. Last block: {ret}")
     return None
 
 
@@ -141,7 +142,7 @@ def parse_add_block(ret, block, alias=None, multiple_providers=True):
         ret[alias] = block
 
 
-def parse(path, multiple_providers=True):
+def parse(path: Path, multiple_providers=True):
     """
     Parse an APKINDEX.tar.gz file, and return its content as dictionary.
 
@@ -170,13 +171,13 @@ def parse(path, multiple_providers=True):
     NOTE: "block" is the return value from parse_next_block() above.
     """
     # Require the file to exist
-    if not os.path.isfile(path):
+    if not path.is_file():
         logging.verbose("NOTE: APKINDEX not found, assuming no binary packages"
-                        " exist for that architecture: " + path)
+                       f" exist for that architecture: {path}")
         return {}
 
     # Try to get a cached result first
-    lastmod = os.path.getmtime(path)
+    lastmod = path.lstat().st_mtime
     cache_key = "multiple" if multiple_providers else "single"
     if path in pmb.helpers.other.cache["apkindex"]:
         cache = pmb.helpers.other.cache["apkindex"][path]
@@ -189,14 +190,14 @@ def parse(path, multiple_providers=True):
     # Read all lines
     if tarfile.is_tarfile(path):
         with tarfile.open(path, "r:gz") as tar:
-            with tar.extractfile(tar.getmember("APKINDEX")) as handle:
+            with tar.extractfile(tar.getmember("APKINDEX")) as handle: # type:ignore[union-attr]
                 lines = handle.readlines()
     else:
-        with open(path, "r", encoding="utf-8") as handle:
+        with path.open("r", encoding="utf-8") as handle:
             lines = handle.readlines()
 
     # Parse the whole APKINDEX file
-    ret = collections.OrderedDict()
+    ret: Dict[str, Any] = collections.OrderedDict()
     start = [0]
     while True:
         block = parse_next_block(path, lines, start)
@@ -205,8 +206,8 @@ def parse(path, multiple_providers=True):
 
         # Skip virtual packages
         if "timestamp" not in block:
-            logging.verbose("Skipped virtual package " + str(block) + " in"
-                            " file: " + path)
+            logging.verbose(f"Skipped virtual package {block} in"
+                            f" file: {path}")
             continue
 
         # Add the next package and all aliases
@@ -222,7 +223,7 @@ def parse(path, multiple_providers=True):
     return ret
 
 
-def parse_blocks(path):
+def parse_blocks(path: Path):
     """
     Read all blocks from an APKINDEX.tar.gz into a list.
 
@@ -236,11 +237,11 @@ def parse_blocks(path):
     """
     # Parse all lines
     with tarfile.open(path, "r:gz") as tar:
-        with tar.extractfile(tar.getmember("APKINDEX")) as handle:
+        with tar.extractfile(tar.getmember("APKINDEX")) as handle: # type:ignore[union-attr]
             lines = handle.readlines()
 
     # Parse lines into blocks
-    ret = []
+    ret: List[str] = []
     start = [0]
     while True:
         block = pmb.parse.apkindex.parse_next_block(path, lines, start)
@@ -249,13 +250,13 @@ def parse_blocks(path):
         ret.append(block)
 
 
-def clear_cache(path):
+def clear_cache(path: Path):
     """
     Clear the APKINDEX parsing cache.
 
     :returns: True on successful deletion, False otherwise
     """
-    logging.verbose("Clear APKINDEX cache for: " + path)
+    logging.verbose(f"Clear APKINDEX cache for: {path}")
     if path in pmb.helpers.other.cache["apkindex"]:
         del pmb.helpers.other.cache["apkindex"][path]
         return True
@@ -265,7 +266,7 @@ def clear_cache(path):
         return False
 
 
-def providers(args, package, arch=None, must_exist=True, indexes=None):
+def providers(args: PmbArgs, package, arch=None, must_exist=True, indexes=None):
     """
     Get all packages, which provide one package.
 
@@ -286,7 +287,7 @@ def providers(args, package, arch=None, must_exist=True, indexes=None):
 
     package = pmb.helpers.package.remove_operators(package)
 
-    ret = collections.OrderedDict()
+    ret: Dict[str, Any] = collections.OrderedDict()
     for path in indexes:
         # Skip indexes not providing the package
         index_packages = parse(path)
@@ -300,19 +301,17 @@ def providers(args, package, arch=None, must_exist=True, indexes=None):
             if provider_pkgname in ret:
                 version_last = ret[provider_pkgname]["version"]
                 if pmb.parse.version.compare(version, version_last) == -1:
-                    logging.verbose(package + ": provided by: " +
-                                    provider_pkgname + "-" + version + " in " +
-                                    path + " (but " + version_last + " is"
-                                    " higher)")
+                    logging.verbose(f"{package}: provided by: {provider_pkgname}-{version}"
+                                    f"in {path} (but {version_last} is higher)")
                     continue
 
             # Add the provider to ret
-            logging.verbose(package + ": provided by: " + provider_pkgname +
-                            "-" + version + " in " + path)
+            logging.verbose(f"{package}: provided by: {provider_pkgname}-{version} in {path}")
             ret[provider_pkgname] = provider
 
     if ret == {} and must_exist:
-        logging.debug("Searched in APKINDEX files: " + ", ".join(indexes))
+        import os
+        logging.debug(f"Searched in APKINDEX files: {', '.join([os.fspath(x) for x in indexes])}")
         raise RuntimeError("Could not find package '" + package + "'!")
 
     return ret
@@ -326,7 +325,7 @@ def provider_highest_priority(providers, pkgname):
     :param pkgname: the package name we are interested in (for the log message)
     """
     max_priority = 0
-    priority_providers = collections.OrderedDict()
+    priority_providers: collections.OrderedDict[str, str] = collections.OrderedDict()
     for provider_name, provider in providers.items():
         priority = int(provider.get("provider_priority", -1))
         if priority > max_priority:
@@ -362,7 +361,7 @@ def provider_shortest(providers, pkgname):
     return providers[ret]
 
 
-def package(args, package, arch=None, must_exist=True, indexes=None):
+def package(args: PmbArgs, package, arch=None, must_exist=True, indexes=None):
     """
     Get a specific package's data from an apkindex.
 

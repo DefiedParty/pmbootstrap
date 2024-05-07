@@ -1,12 +1,15 @@
 # Copyright 2023 Oliver Smith
 # SPDX-License-Identifier: GPL-3.0-or-later
+import os
+from pathlib import Path
+import subprocess
 import pmb.helpers.run_core
-from argparse import Namespace
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Sequence
+from pmb.core.types import Env, PathString, PmbArgs
 
 
-def user(args: Namespace, cmd: List[str], working_dir: Optional[str]=None, output: str="log", output_return: bool=False,
-         check: Optional[bool]=None, env: Dict[Any, Any]={}, sudo: bool=False) -> str:
+def user(args: PmbArgs, cmd: Sequence[PathString], working_dir: Optional[Path] = None, output: str = "log", output_return: bool = False,
+         check: Optional[bool] = None, env: Env = {}, sudo: bool = False) -> str | int | subprocess.Popen:
     """
     Run a command on the host system as user.
 
@@ -16,24 +19,34 @@ def user(args: Namespace, cmd: List[str], working_dir: Optional[str]=None, outpu
     See pmb.helpers.run_core.core() for a detailed description of all other
     arguments and the return value.
     """
+    cmd_parts = [os.fspath(x) for x in cmd]
     # Readable log message (without all the escaping)
     msg = "% "
     for key, value in env.items():
-        msg += key + "=" + value + " "
-    if working_dir:
-        msg += "cd " + working_dir + "; "
-    msg += " ".join(cmd)
+        msg += f"{key}={value} "
+    if working_dir is not None:
+        msg += f"cd {os.fspath(working_dir)}; "
+    msg += " ".join(cmd_parts)
 
     # Add environment variables and run
     env = env.copy()
     pmb.helpers.run_core.add_proxy_env_vars(env)
     if env:
-        cmd = ["sh", "-c", pmb.helpers.run_core.flat_cmd(cmd, env=env)]
-    return pmb.helpers.run_core.core(args, msg, cmd, working_dir, output,
+        cmd_parts = ["sh", "-c", pmb.helpers.run_core.flat_cmd(cmd_parts, env=env)]
+    return pmb.helpers.run_core.core(args, msg, cmd_parts, working_dir, output,
                                      output_return, check, sudo)
 
+# FIXME: should probably use some kind of wrapper class / builder pattern for all these parameters...
+def user_output(args: PmbArgs, cmd: Sequence[PathString], working_dir: Optional[Path] = None, output: str = "log",
+                check: Optional[bool] = None, env: Env = {}, sudo: bool = False) -> str:
+    ret = user(args, cmd, working_dir, output, output_return=True, check=check, env=env, sudo=sudo)
+    if not isinstance(ret, str):
+        raise TypeError("Expected str output, got " + str(ret))
+    
+    return ret
 
-def root(args, cmd, working_dir=None, output="log", output_return=False,
+
+def root(args: PmbArgs, cmd: Sequence[PathString], working_dir=None, output="log", output_return=False,
          check=None, env={}):
     """
     Run a command on the host system as root, with sudo or doas.

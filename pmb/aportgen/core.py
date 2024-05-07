@@ -1,10 +1,11 @@
 # Copyright 2023 Oliver Smith
 # SPDX-License-Identifier: GPL-3.0-or-later
 import fnmatch
-import logging
+from pmb.helpers import logging
 import re
-import glob
+from pmb.core.types import PmbArgs
 import pmb.helpers.git
+import pmb.helpers.run
 
 
 def indent_size(line):
@@ -46,7 +47,7 @@ def format_function(name, body, remove_indent=4):
     return name + "() {\n" + ret + "}\n"
 
 
-def rewrite(args, pkgname, path_original="", fields={}, replace_pkgname=None,
+def rewrite(args: PmbArgs, pkgname, path_original="", fields={}, replace_pkgname=None,
             replace_functions={}, replace_simple={}, below_header="",
             remove_indent=4):
     """
@@ -73,9 +74,9 @@ def rewrite(args, pkgname, path_original="", fields={}, replace_pkgname=None,
     # Header
     if path_original:
         lines_new = [
-            "# Automatically generated aport, do not edit!\n",
-            "# Generator: pmbootstrap aportgen " + pkgname + "\n",
-            "# Based on: " + path_original + "\n",
+             "# Automatically generated aport, do not edit!\n",
+            f"# Generator: pmbootstrap aportgen {pkgname}\n",
+            f"# Based on: {path_original}\n",
             "\n",
         ]
     else:
@@ -91,7 +92,7 @@ def rewrite(args, pkgname, path_original="", fields={}, replace_pkgname=None,
             lines_new += line.rstrip() + "\n"
 
     # Copy/modify lines, skip Maintainer/Contributor
-    path = args.work + "/aportgen/APKBUILD"
+    path = pmb.config.work / "aportgen/APKBUILD"
     with open(path, "r+", encoding="utf-8") as handle:
         skip_in_func = False
         for line in handle.readlines():
@@ -152,7 +153,7 @@ def rewrite(args, pkgname, path_original="", fields={}, replace_pkgname=None,
         handle.truncate()
 
 
-def get_upstream_aport(args, pkgname, arch=None):
+def get_upstream_aport(args: PmbArgs, pkgname, arch=None):
     """
     Perform a git checkout of Alpine's aports and get the path to the aport.
 
@@ -163,7 +164,7 @@ def get_upstream_aport(args, pkgname, arch=None):
     """
     # APKBUILD
     pmb.helpers.git.clone(args, "aports_upstream")
-    aports_upstream_path = args.work + "/cache_git/aports_upstream"
+    aports_upstream_path = pmb.config.work / "cache_git/aports_upstream"
 
     if getattr(args, "fork_alpine_retain_branch", False):
         logging.info("Not changing aports branch as --fork-alpine-retain-branch was "
@@ -183,7 +184,7 @@ def get_upstream_aport(args, pkgname, arch=None):
             raise RuntimeError("Branch checkout failed.")
 
     # Search package
-    paths = glob.glob(aports_upstream_path + "/*/" + pkgname)
+    paths = list(aports_upstream_path.glob(f"*/{pkgname}"))
     if len(paths) > 1:
         raise RuntimeError("Package " + pkgname + " found in multiple"
                            " aports subfolders.")
@@ -193,12 +194,11 @@ def get_upstream_aport(args, pkgname, arch=None):
     aport_path = paths[0]
 
     # Parse APKBUILD
-    apkbuild = pmb.parse.apkbuild(f"{aport_path}/APKBUILD",
-                                  check_pkgname=False)
+    apkbuild = pmb.parse.apkbuild(aport_path, check_pkgname=False)
     apkbuild_version = apkbuild["pkgver"] + "-r" + apkbuild["pkgrel"]
 
     # Binary package
-    split = aport_path.split("/")
+    split = aport_path.parts
     repo = split[-2]
     pkgname = split[-1]
     index_path = pmb.helpers.repo.alpine_apkindex_path(args, repo, arch)
