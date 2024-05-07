@@ -1117,6 +1117,10 @@ def get_selected_providers(args, packages, initial=True):
                 ret += [args.selected_providers[select]]
                 logging.debug(f"{package}: install selected_providers:"
                               f" {', '.join(ret)}")
+            else:
+                for default in apkbuild['_pmb_default']:
+                    if select == default[:default.rfind("-")]:
+                        ret.append(pmb.helpers.pmaports.get_default_provider(args, apkbuild, select))
         # Also iterate through dependencies to collect any providers they have
         depends = apkbuild["depends"]
         if depends:

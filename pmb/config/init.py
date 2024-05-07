@@ -267,6 +267,7 @@ def ask_for_provider_select(args, apkbuild, providers_cfg):
     """
     for select in apkbuild["_pmb_select"]:
         providers = pmb.helpers.pmaports.find_providers(args, select)
+        default_provider = pmb.helpers.pmaports.get_default_provider(args, apkbuild, select, full_name=True)
         logging.info(f"Available providers for {select} ({len(providers)}):")
 
         has_default = False
@@ -286,7 +287,7 @@ def ask_for_provider_select(args, apkbuild, providers_cfg):
             if pkgname == last_selected:
                 last_selected = short
 
-            if not has_default and pkg.get('provider_priority', 0) != 0:
+            if default_provider == short:
                 # Display as default provider
                 styles = pmb.config.styles
                 logging.info(f"* {short}: {pkg['pkgdesc']} "
@@ -302,7 +303,7 @@ def ask_for_provider_select(args, apkbuild, providers_cfg):
             if has_default and ret == 'default':
                 # Selecting default means to not select any provider explicitly
                 # In other words, apk chooses it automatically based on
-                # "provider_priority"
+                # "provider_priority" or "_pmb_default"
                 if select in providers_cfg:
                     del providers_cfg[select]
                 break
