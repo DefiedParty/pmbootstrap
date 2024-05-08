@@ -76,5 +76,10 @@ def run(args, action, flavor=None):
 
         # Remove empty strings
         command = [x for x in command if x != '']
+
+        if method.startswith("fastboot") \
+                and args.deviceinfo["flash_fastboot_max_size"]:
+            command += ["-S", args.deviceinfo["flash_fastboot_max_size"]]
+
         # Run the action
         pmb.chroot.root(args, command, output="interactive")

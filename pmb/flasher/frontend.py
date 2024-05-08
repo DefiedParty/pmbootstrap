@@ -59,15 +59,6 @@ def rootfs(args):
         raise RuntimeError("The rootfs has not been generated yet, please run"
                            " 'pmbootstrap install' first.")
 
-    # Do not flash if using fastboot & image is too large
-    if method.startswith("fastboot") \
-            and args.deviceinfo["flash_fastboot_max_size"]:
-        img_size = os.path.getsize(img_path) / 1024**2
-        max_size = int(args.deviceinfo["flash_fastboot_max_size"])
-        if img_size > max_size:
-            raise RuntimeError("The rootfs is too large for fastboot to"
-                               " flash.")
-
     # Run the flasher
     logging.info("(native) flash rootfs image")
     pmb.flasher.run(args, "flash_rootfs")
