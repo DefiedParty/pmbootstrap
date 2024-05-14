@@ -32,6 +32,12 @@ pytest:
     - "su build -c 'git config --global user.name CI'"
     - "echo 'build ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers"
     - ".ci/pytest.sh"
+  after_script:
+    - "cp /home/build/.local/var/pmbootstrap/log_testsuite.txt ."
+  artifacts:
+    when: on_failure
+    paths:
+      - "log_testsuite.txt"
 
 ruff:
   stage: lint
